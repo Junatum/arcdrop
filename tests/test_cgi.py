@@ -174,6 +174,30 @@ class ArcDropCGITests(unittest.TestCase):
         self.assertNotEqual(a['id'], b['id'])
         self.assertNotEqual(a['token'], b['token'])
 
+    def test_기기_이름과_종류를_별도로_저장하고_주변기기에_표시한다(self):
+        status, ipad = self.call('register', {'name': 'Mac', 'deviceType': 'tablet'})
+        self.assertEqual(status, 200)
+        status, mac = self.call('register', {'name': 'MacBook Pro', 'deviceType': 'laptop'})
+        self.assertEqual(status, 200)
+        status, peers = self.call('peers', mac)
+        self.assertEqual(status, 200)
+        self.assertEqual(peers['peers'], [{'id': ipad['id'], 'name': 'Mac', 'deviceType': 'tablet'}])
+        with (Path(self.tmp) / f"{ipad['id']}.json").open(encoding='utf-8') as fp:
+            saved = json.load(fp)
+        self.assertEqual(saved['deviceType'], 'tablet')
+
+    def test_기기_종류는_허용값만_사용하고_기존_등록도_유지한다(self):
+        for bad in ('router', '<svg>', '', 3, None, {'type': 'tablet'}):
+            with self.subTest(bad=bad):
+                status, result = self.call('register', {'name': 'invalid', 'deviceType': bad})
+                self.assertEqual(status, 400)
+                self.assertEqual(result['error'], 'invalid device type')
+        legacy = self.session('Legacy Mac')
+        other = self.session('Receiver')
+        status, peers = self.call('peers', other)
+        self.assertEqual(status, 200)
+        self.assertEqual(peers['peers'], [{'id': legacy['id'], 'name': 'Legacy Mac'}])
+
     def test_초대_전에는_협상정보를_전달할_수_없다(self):
         a, b = self.session('A'), self.session('B')
         status, data = self.call('signal', {**a, 'to': b['id'], 'kind': 'offer',

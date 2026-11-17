@@ -5,7 +5,7 @@
 **ArcDrop — by SmartSafeHub**. Lightweight, open-source, LAN-only peer-to-peer file sharing for OpenWrt.
 
 - License: **GPL-3.0-or-later**; independent implementation, no PairDrop code or assets reused.
-- Package: `smartsafehub-app-arcdrop` (`0.1.0-r7`).
+- Package: `smartsafehub-app-arcdrop` (`0.1.0-r8`).
 - Sender/receiver browsers transfer file bytes via encrypted **WebRTC RTCDataChannel**, with `iceServers: []` (no external STUN/TURN).
 - The router only serves a small local UI and passes bounded discovery/SDP/ICE metadata; **no file bytes are sent to or stored on the router**, cloud or local disk.
 - The signaling metadata (device name, IP, session token, SDP/ICE messages) temporarily resides in `/tmp/arcdrop` (tmpfs). Session metadata expires after 45 seconds of inactivity.
@@ -19,6 +19,8 @@
 4. The recipient explicitly accepts; once directly connected the file is streamed in 16 KiB chunks. The recipient uses **Save file** to download locally.
 
 **HTTPS caveat:** ArcDrop deliberately **does not** issue certificates. If the router's HTTPS certificate is self-signed or does not match the URL, browsers may refuse secure-context features (especially mobile browsers). Never tell end users to bypass TLS warnings as a permanent solution. Obtain a trusted certificate before a public release. See [deployment and security](docs/DEPLOYMENT.md).
+
+**Device labels:** ArcDrop detects phones/tablets/computers from the browser and sends the category separately from the editable display name. iPadOS Safari can identify itself as macOS; touch capability is checked to classify it as an iPad. For privacy, browsers do not reliably expose exact models such as "MacBook Pro" or "iPad Pro"; use the pencil icon beside your device name to set a custom label. Device categories are display hints, not trusted device identities.
 
 **Network caveat:** The CGI permits access only from the IPv4 subnet assigned to `br-lan` by default. It intentionally fails closed for IPv6 and missing interfaces. Configure a different *trusted* LAN interface with `/etc/arcdrop.conf` if necessary. Keep guest/IoT client isolation and WAN firewall rules enabled. A LAN with client isolation can block WebRTC host candidates; ArcDrop does not use TURN to work around that isolation.
 

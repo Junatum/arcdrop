@@ -35,27 +35,38 @@ function progress(title, current, total, details) {
   $('transfer-title').textContent = title;
   const percentage = total > 0 ? Math.min(100, Math.round(current * 100 / total)) : 100;
   $('transfer-percent').textContent = `${percentage}%`;
-  $('progress-fill').style.width = `${percentage}%`;
+  $('transfer-progress').value = percentage;
   $('transfer-progress').setAttribute('aria-valuenow', String(percentage));
   $('transfer-detail').textContent = details;
   show('transfer', true);
 }
-function deviceIcon(name) {
-  if (/iphone|android|phone|pixel|galaxy/i.test(name)) return 'phone';
+const DEVICE_TYPES = ['phone', 'tablet', 'laptop', 'desktop'];
+function deviceIcon(peer) {
+  // Explicit device type is independent of the user-editable display name.
+  if (DEVICE_TYPES.includes(peer.deviceType)) return peer.deviceType;
+  // Compatibility with sessions created by an older ArcDrop version.
+  const name = peer.name || '';
   if (/ipad|tablet|tab\b/i.test(name)) return 'tablet';
+  if (/iphone|android|phone|pixel|galaxy/i.test(name)) return 'phone';
   if (/macbook|laptop|notebook/i.test(name)) return 'laptop';
   return 'desktop';
 }
-function peerPosition(index, count) {
-  const angles = {
-    1: [-90], 2: [-135, -45], 3: [-150, -30, 90],
-    4: [-145, -35, 35, 145], 5: [-150, -90, -30, 45, 135],
-    6: [-150, -90, -30, 30, 90, 150],
-  };
-  const angle = angles[count]?.[index] ?? -90;
-  const radians = angle * Math.PI / 180;
-  const radius = Math.sin(radians) > 0 ? 190 : 235;
-  return { x: Math.round(Math.cos(radians) * radius), y: Math.round(Math.sin(radians) * radius) };
+function detectDevice() {
+  const ua = navigator.userAgent || '';
+  const platform = navigator.platform || '';
+  const touch = navigator.maxTouchPoints || 0;
+  // Since iPadOS 13, Safari can report Macintosh / MacIntel like a Mac.
+  if (/iPad/i.test(ua) || ((/Macintosh/i.test(ua) || /MacIntel/i.test(platform)) && touch > 1))
+    return { name: 'iPad', deviceType: 'tablet' };
+  if (/iPhone|iPod/i.test(ua)) return { name: 'iPhone', deviceType: 'phone' };
+  if (/Android/i.test(ua)) return /Mobile/i.test(ua)
+    ? { name: 'Android Phone', deviceType: 'phone' }
+    : { name: 'Android Tablet', deviceType: 'tablet' };
+  // Browser privacy APIs do not reliably identify exact Mac hardware models.
+  if (/Mac/i.test(platform) || /Macintosh/i.test(ua)) return { name: 'Mac', deviceType: 'desktop' };
+  if (/Windows/i.test(ua) || /Win/i.test(platform)) return { name: 'Windows PC', deviceType: 'desktop' };
+  if (/Linux/i.test(ua) || /Linux/i.test(platform)) return { name: 'Linux PC', deviceType: 'desktop' };
+  return { name: '내 기기', deviceType: 'desktop' };
 }
 function choosePeerFile(peer) {
   if (state.active || state.incoming) return;
@@ -128,20 +139,18 @@ function renderPeers() {
   $('peer-count').textContent = count ? `주변 기기 ${count}대` : '주변 기기를 찾는 중';
   $('discovery').dataset.density = count > 6 ? 'many' : 'radial';
   $('discovery').dataset.empty = count ? 'false' : 'true';
-  $('discovery').style.setProperty('--list-height', `${Math.ceil(count / 2) * 140}px`);
+  $('discovery').dataset.rows = String(Math.min(Math.ceil(count / 2), 6));
   for (const [index, peer] of state.peers.entries()) {
     const btn = document.createElement('button');
     btn.type = 'button'; btn.className = 'peer';
     btn.disabled = !!(state.active || state.incoming);
     btn.setAttribute('aria-label', `${peer.name}에 파일 보내기`);
-    const pos = peerPosition(index, count);
-    btn.style.setProperty('--peer-x', `${pos.x}px`);
-    btn.style.setProperty('--peer-y', `${pos.y}px`);
+    if (count <= 6) btn.classList.add(`peer-pos-${count}-${index}`);
     const orb = document.createElement('span'); orb.className = 'peer-orb';
     const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     icon.setAttribute('class', 'icon'); icon.setAttribute('aria-hidden', 'true');
     const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-    use.setAttribute('href', `#icon-${deviceIcon(peer.name)}`);
+    use.setAttribute('href', `#icon-${deviceIcon(peer)}`);
     icon.append(use); orb.append(icon);
     const title = document.createElement('span'); title.className = 'peer-name'; title.textContent = peer.name;
     const subtitle = document.createElement('span'); subtitle.className = 'peer-action'; subtitle.textContent = '파일 보내기';
@@ -201,7 +210,8 @@ function createConnection(t) {
   };
   pc.onconnectionstatechange = () => {
     if (state.active !== t) return;
-    if (pc.connectionState === 'failed' || pc.connectionState === 'closed')
+    // Closing the peer connection after a successful ACK is not a failure.
+    if (!t.finished && (pc.connectionState === 'failed' || pc.connectionState === 'closed'))
       void cancelTransfer('기기 간 직접 연결이 종료되었습니다.', false);
   };
   if (t.role === 'receiver') pc.ondatachannel = (event) => installChannel(t, event.channel);
@@ -270,7 +280,10 @@ function installChannel(t, channel) {
     try { receiveMessage(t, ev.data); }
     catch (err) { void cancelTransfer(err.message); }
   };
-  channel.onerror = () => { if (state.active === t) void cancelTransfer('전송 채널에 오류가 발생했습니다.'); };
+  channel.onerror = () => {
+    if (state.active === t && !t.finished)
+      void cancelTransfer('전송 채널에 오류가 발생했습니다.');
+  };
 }
 async function sendFile(t) {
   const channel = t.channel;
@@ -308,12 +321,15 @@ function receiveMessage(t, data) {
       show('download', true);
       $('done').focus();
       t.finished = true;
-      t.channel.send(JSON.stringify({ type: 'ack' }));
+      // The file is already complete. A peer that closes during the ACK
+      // handshake must not turn successful reception into a false error.
+      try { t.channel.send(JSON.stringify({ type: 'ack' })); }
+      catch { /* remote peer disconnected after the payload arrived */ }
       notice('수신이 완료되었습니다. 파일 저장 버튼을 눌러주세요.');
       setTimeout(() => { if (state.active === t) resetTransfer(); }, 800); return;
     }
     if (msg.type === 'ack' && t.role === 'sender') {
-      notice('파일 전송이 완료되었습니다.'); resetTransfer(); return;
+      t.finished = true; notice('파일 전송이 완료되었습니다.'); resetTransfer(); return;
     }
     throw Error('예상하지 못한 전송 메시지입니다.');
   }
@@ -335,7 +351,7 @@ async function loop() {
         renderPeers();
       }
     } catch (err) {
-      if (state.active) await cancelTransfer(`연결 오류: ${err.message}`, false);
+      if (state.active && !state.active.finished) await cancelTransfer(`연결 오류: ${err.message}`, false);
       if (/session|expired|LAN only|HTTPS/i.test(err.message)) {
         state.running = false; setConnectionStatus('error', '연결 끊김'); notice(`연결이 끊어졌습니다. 페이지를 새로고침해주세요: ${err.message}`, true); break;
       }
@@ -351,11 +367,12 @@ async function start() {
     notice('신뢰할 수 있는 HTTPS 연결과 WebRTC 지원 브라우저가 필요합니다. 공유기의 HTTPS 인증서 상태를 확인해주세요.', true);
     return;
   }
-  const defaultName = /iPhone|iPad/.test(navigator.userAgent) ? 'iPhone / iPad' :
-    /Android/.test(navigator.userAgent) ? 'Android' : /Mac/.test(navigator.platform) ? 'Mac' : '내 기기';
-  const name = sessionStorage.getItem('arcdrop-name') || defaultName;
+  const device = detectDevice();
+  const name = sessionStorage.getItem('arcdrop-name') || device.name;
+  const selfIcon = document.querySelector('.self-orb use');
+  if (selfIcon) selfIcon.setAttribute('href', `#icon-${device.deviceType}`);
   try {
-    state.session = await api('register', { name });
+    state.session = await api('register', { name, deviceType: device.deviceType });
     $('my-name').textContent = name;
     setConnectionStatus('online', '로컬 연결');
     notice('');

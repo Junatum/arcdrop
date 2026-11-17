@@ -50,13 +50,13 @@
       <p class="privacy-note"><svg class="icon" aria-hidden="true"><use href="#icon-check"/></svg> 같은 로컬 네트워크에서 기기 간 직접 전송 · 공유기에 파일을 저장하지 않습니다.</p>
     </main>
     <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-    <footer>ArcDrop 0.1.0-r7</footer>
+    <footer>ArcDrop 0.1.0-r8</footer>
   </div>
   <section id="incoming" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="incoming-title" aria-describedby="incoming-detail">
     <div class="dialog-panel"><div class="dialog-symbol"><svg class="icon"><use href="#icon-file"/></svg></div><span class="dialog-eyebrow">파일 수신 요청</span><h2 id="incoming-title">파일을 받으시겠습니까?</h2><p id="incoming-detail" class="dialog-description"></p><div class="dialog-actions"><button id="accept" class="primary" type="button">파일 받기</button><button id="decline" class="secondary" type="button">거절</button></div></div>
   </section>
   <section id="transfer" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="transfer-title" aria-describedby="transfer-detail">
-    <div class="dialog-panel"><div class="dialog-symbol sending"><img src="./icon.svg" alt="" width="44" height="44"></div><span class="dialog-eyebrow">기기 간 직접 전송</span><h2 id="transfer-title">연결 준비 중</h2><div class="transfer-value" id="transfer-percent">0%</div><div class="progress" role="progressbar" aria-label="파일 전송 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="transfer-progress"><div id="progress-fill"></div></div><p id="transfer-detail" class="dialog-description"></p><button id="cancel" class="secondary wide" type="button">전송 취소</button></div>
+    <div class="dialog-panel"><div class="dialog-symbol sending"><img src="./icon.svg" alt="" width="44" height="44"></div><span class="dialog-eyebrow">기기 간 직접 전송</span><h2 id="transfer-title">연결 준비 중</h2><div class="transfer-value" id="transfer-percent">0%</div><progress class="progress" aria-label="파일 전송 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="transfer-progress" max="100" value="0"></progress><p id="transfer-detail" class="dialog-description"></p><button id="cancel" class="secondary wide" type="button">전송 취소</button></div>
   </section>
   <section id="download" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="download-heading">
     <div class="dialog-panel"><div class="dialog-symbol complete"><svg class="icon"><use href="#icon-check"/></svg></div><span class="dialog-eyebrow">전송 완료</span><h2 id="download-heading">파일을 받았습니다</h2><p id="download-title" class="dialog-description"></p><a id="download-link" class="button primary wide" href="#" download>파일 저장</a><button id="done" class="secondary wide" type="button">닫기</button><p class="dialog-footnote">받은 파일은 이 브라우저에만 있습니다. 다른 곳에 저장하려면 파일 저장을 누르세요.</p></div>

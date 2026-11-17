@@ -2,6 +2,20 @@
 
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
+## 0.1.0-r8 (2026-11-17)
+
+### Fixed
+- Prevented a successfully received file from being reported as a transfer failure when the peer closes the WebRTC channel after acknowledgment.
+- Removed runtime inline-style writes that triggered strict Content Security Policy warnings in Firefox.
+- Detected iPadOS desktop-class Safari correctly instead of labeling an iPad as a Mac.
+
+### Improved
+- Sent a validated device category through the existing LAN discovery API so icons remain correct after users rename a device.
+- Used a native HTML progress indicator and predefined CSS classes without relaxing the existing CSP.
+
+### Tests
+- Added CGI device-category validation tests, iPadOS detection cases, successful-transfer teardown regression tests, and strict CSP source contracts.
+
 ## 0.1.0-r7 (2026-11-17)
 
 ### Fixed

@@ -313,24 +313,37 @@ static int signal_body_ok(const char *kind, J *body) {
     }
     return 0;
 }
+static int valid_device_type(const char *type) {
+    return type && (!strcmp(type, "phone") || !strcmp(type, "tablet") ||
+                    !strcmp(type, "laptop") || !strcmp(type, "desktop"));
+}
 static void list_peers(const char *id, J *peer, void *ctx) {
     struct {const char *self; J *arr;} *c = ctx;
     if (strcmp(id, c->self) == 0) return;
     J *row = json_object_new_object();
     addstr(row, "id", id);
     addstr(row, "name", sfield(peer, "name") ? sfield(peer, "name") : "Device");
+    const char *device_type = sfield(peer, "deviceType");
+    if (valid_device_type(device_type)) addstr(row, "deviceType", device_type);
     json_object_array_add(c->arr, row);
 }
 static void create_session(J *req) {
     const char *name = sfield(req, "name");
     if (!name || !*name || strlen(name) > 48) error_reply(400, "name must be 1-48 bytes");
+    J *device_type_field = NULL;
+    int has_device_type = json_object_object_get_ex(req, "deviceType", &device_type_field);
+    const char *device_type = sfield(req, "deviceType");
+    if (has_device_type && !valid_device_type(device_type))
+        error_reply(400, "invalid device type");
     struct counters counter = {0}; walk_peers(count_peers, &counter);
     if (counter.all >= MAX_PEERS || counter.from_ip >= MAX_PER_IP) error_reply(429, "too many devices");
     char id[25], token[49];
     if (!random_hex(id, 12) || !random_hex(token, 24)) error_reply(503, "secure randomness unavailable");
     J *p = json_object_new_object();
     addstr(p, "id", id); addstr(p, "token", token); addstr(p, "ip", client_ip);
-    addstr(p, "name", name); addint(p, "last", now_time);
+    addstr(p, "name", name);
+    if (device_type) addstr(p, "deviceType", device_type);
+    addint(p, "last", now_time);
     addint(p, "window", now_time); addint(p, "requests", 0);
     json_object_object_add(p, "messages", json_object_new_array());
     json_object_object_add(p, "allowed", json_object_new_array());

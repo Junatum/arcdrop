@@ -6,7 +6,6 @@ const SAMPLE_PEERS = [
   { id: 'preview-b', name: 'Windows PC', icon: 'desktop' },
   { id: 'preview-c', name: 'iPad Air', icon: 'tablet' },
 ];
-const POSITIONS = [[-203, -118], [203, -118], [0, 190]];
 const dialogIds = ['incoming', 'transfer', 'download', 'help-dialog'];
 let selectedPeer = null;
 function show(id, value) {
@@ -18,14 +17,13 @@ function renderPeers(peers) {
   $('devices').replaceChildren();
   $('discovery').dataset.density = 'radial';
   $('discovery').dataset.empty = peers.length ? 'false' : 'true';
-  $('discovery').style.setProperty('--list-height', `${Math.ceil(peers.length / 2) * 140}px`);
+  $('discovery').dataset.rows = String(Math.min(Math.ceil(peers.length / 2), 6));
   $('peer-count').textContent = peers.length ? `주변 기기 ${peers.length}대` : '주변 기기를 찾는 중';
   for (const [index, peer] of peers.entries()) {
     const btn = document.createElement('button');
     btn.className = 'peer'; btn.type = 'button';
     btn.setAttribute('aria-label', `${peer.name}에 파일 보내기`);
-    const [x, y] = peers.length === 1 ? [0, -235] : POSITIONS[index];
-    btn.style.setProperty('--peer-x', `${x}px`); btn.style.setProperty('--peer-y', `${y}px`);
+    if (peers.length <= 6) btn.classList.add(`peer-pos-${peers.length}-${index}`);
     const orb = document.createElement('span'); orb.className = 'peer-orb';
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('class', 'icon'); svg.setAttribute('aria-hidden', 'true');
@@ -54,7 +52,7 @@ function preview(mode) {
     $('transfer-title').textContent = '파일 전송 중';
     $('transfer-percent').textContent = '68%';
     $('transfer-progress').setAttribute('aria-valuenow', '68');
-    $('progress-fill').style.width = '68%';
+    $('transfer-progress').value = 68;
     $('transfer-detail').textContent = 'iPhone 17로 파일을 보내는 화면 예시입니다.';
     show('transfer', true);
   } else if (mode === 'complete') {
