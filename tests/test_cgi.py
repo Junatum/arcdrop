@@ -364,6 +364,28 @@ class ArcDropCGITests(unittest.TestCase):
         status, _ = self.call('register', raw=b'not-json')
         self.assertEqual(status, 400)
 
+    def test_긴_잠금경로가_잘려_다른_파일을_잠그지_않는다(self):
+        # A 320-byte lock buffer previously truncated a long state path.
+        # Make the truncated path an existing private file to prove that
+        # a request cannot silently lock the wrong file.
+        with tempfile.TemporaryDirectory(prefix='arcdrop-lock-path-') as directory:
+            parent = Path(directory) / ('p' * 120)
+            parent.mkdir(mode=0o700)
+            prefix_len = 319 - len(str(parent)) - 1
+            self.assertTrue(1 <= prefix_len <= 253)
+            prefix = 'q' * prefix_len
+            protected = parent / prefix
+            protected.write_text('untouched', encoding='utf-8')
+            os.chmod(protected, 0o600)
+            state = parent / (prefix + 'r')
+            state.mkdir(mode=0o700)
+            status, reply = self.call('register', {'name': 'A'},
+                env={'ARCDROP_TEST_STATE': str(state)})
+            self.assertEqual(status, 503)
+            self.assertEqual(reply['error'], 'state lock unavailable')
+            self.assertEqual(protected.read_text(encoding='utf-8'), 'untouched')
+            self.assertFalse((state / '.lock').exists())
+
     def test_잠금파일_심볼릭링크를_거부하고_외부파일을_보존한다(self):
         with tempfile.TemporaryDirectory(prefix='arcdrop-guard-test-') as outside:
             target = Path(outside) / 'do-not-touch'

@@ -1,2 +1,5 @@
-Checks: '-*,clang-analyzer-core.*,clang-analyzer-security.*,bugprone-suspicious-memory-comparison'
+# Annex K *_s functions are unavailable in OpenWrt musl and many host libc builds.
+# This checker flags bounded snprintf/memcpy indiscriminately; keep all other
+# core and security analyzers enabled and check path truncation in CGI tests.
+Checks: '-*,clang-analyzer-core.*,clang-analyzer-security.*,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,bugprone-suspicious-memory-comparison'
 WarningsAsErrors: '*'

@@ -106,7 +106,10 @@ int main(void) {
     if (mkdir(app->state_dir, 0700) != 0 && errno != EEXIST)
         error_reply(app, 503, "state directory unavailable");
     if (!prepare_state(app)) error_reply(app, 503, "state directory not private");
-    char lock_path[320]; snprintf(lock_path, sizeof(lock_path), "%s/.lock", app->state_dir);
+    char lock_path[320];
+    int lock_length = snprintf(lock_path, sizeof(lock_path), "%s/.lock", app->state_dir);
+    if (lock_length < 0 || (size_t)lock_length >= sizeof(lock_path))
+        error_reply(app, 503, "state lock unavailable");
     app->lock_fd = open(lock_path, O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
     if (app->lock_fd < 0 || !state_lock_ok(app->lock_fd) ||
         flock(app->lock_fd, LOCK_EX) != 0) error_reply(app, 503, "state lock unavailable");

@@ -65,6 +65,23 @@ for shell_file in (*sorted((root / 'tests').glob('*.sh')),
             require("CDPATH='' cd -- " in shell_line,
                     f'{relative_name}: 명시적인 빈 CDPATH로 ROOT 탐색')
 
+# Avoid blanket analyzer suppressions; the unavailable C11 Annex K _s
+# functions produce false positives even for checked snprintf/memcpy calls.
+# The other security and core analyzers must remain enabled.
+clang_tidy = (root / '.clang-tidy').read_text(encoding='utf-8')
+checks = re.search(r"^Checks:\s*['\"]([^'\"]+)['\"]", clang_tidy, re.M)
+require(checks is not None, 'clang-tidy 검사 규칙을 읽을 수 없음')
+active = checks.group(1).split(',')
+require('clang-analyzer-core.*' in active and 'clang-analyzer-security.*' in active,
+        'Clang 핵심·보안 정적 분석 전체 유지')
+require('-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling' in active,
+        'C11 Annex K가 없는 OpenWrt에서 과도한 버퍼 API 경고만 제외')
+require(not any(name == '-clang-analyzer-security.*' or name == '-clang-analyzer-core.*'
+                for name in active), '보안·핵심 정적 분석 일괄 비활성화 금지')
+entry = (root / 'src/arcdrop.c').read_text(encoding='utf-8')
+require('lock_length < 0 || (size_t)lock_length >= sizeof(lock_path)' in entry,
+        '잠금 파일 경로 잘림 검사 누락')
+
 runner = (root / 'tools/lint.sh').read_text()
 for tool in ('npm run lint:web', 'ruff check', 'shellcheck ', 'clang -std=c11',
              'clang-tidy ', 'yamllint ', 'python3 tools/check_svg.py'):
