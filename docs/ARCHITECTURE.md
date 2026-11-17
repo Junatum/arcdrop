@@ -32,7 +32,7 @@ The router serves the HTML/CSS/JS/SVG and exchanges **signaling metadata only**;
 1. Both browsers connect to the router's **trusted HTTPS** origin and register in the same authorized IPv4 LAN.
 2. The sender selects a peer and one file (up to **64 MiB**), then sends an invitation through CGI.
 3. The receiver **must accept** before WebRTC negotiation begins.
-4. Browsers exchange SDP/ICE metadata through CGI and attempt direct connectivity with `iceServers: []` (no STUN/TURN relay).
+4. Browsers collect local ICE candidates before exchanging bundled offer/answer SDP through CGI, then attempt direct connectivity with `iceServers: []` (no STUN/TURN relay). Legacy trickled ICE messages remain accepted for mixed-version sessions.
 5. File bytes move through an encrypted WebRTC RTCDataChannel in **16 KiB** chunks, with buffering limits. The receiver saves locally.
 
 The CGI requires HTTPS and same-origin JSON requests. Session credentials are short-lived. The API is not intended for WAN or isolated guest/VLAN segments. The system cannot guarantee direct connectivity when local client isolation blocks WebRTC host candidates.

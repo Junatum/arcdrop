@@ -2,7 +2,7 @@
 
 **Languages:** [English](DEVELOPMENT.md) | [한국어](ko/DEVELOPMENT.md)
 
-This guide describes ArcDrop **0.1.0-r8** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
+This guide describes ArcDrop **0.1.0-r9** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
 
 ## 1. Overview
 
@@ -156,3 +156,7 @@ Public CA certificate issuance is **not** implemented. Accepting browser TLS war
 - [ ] Update `Makefile` revision and `web/index.html` displayed revision together.
 - [ ] Do not add external assets, daemons or generated frontend build files.
 - [ ] Do not claim real-device E2E success until it has actually been tested.
+
+### ICE signaling (0.1.0-r9)
+
+Offer and answer are sent after local ICE gathering completes (up to 10 seconds), with local candidates bundled in SDP. This reduces the candidate-order race between Firefox/Gecko and iPadOS/WebKit. Legacy trickled candidates remain accepted. No STUN/TURN service or file relay is added. A working LAN path is still required; a connection failure does not establish that STUN is necessary.

@@ -38,7 +38,7 @@
 #define MAX_PER_IP 4
 #define MAX_QUEUE 32
 #define MAX_BODY 16384
-#define MAX_SIGNAL 12000
+#define MAX_SIGNAL 14000
 #define MAX_REQUESTS 180
 #define WINDOW 60
 
@@ -303,7 +303,7 @@ static int signal_body_ok(const char *kind, J *body) {
         const char *type = sfield(sdp, "type"), *value = sfield(sdp, "sdp");
         return fields == 1 && json_object_is_type(sdp, json_type_object) &&
             json_object_object_length(sdp) == 2 && type && !strcmp(type, kind) &&
-            value && strlen(value) >= 10 && strlen(value) <= 8192 && !strncmp(value, "v=0", 3);
+            value && strlen(value) >= 10 && strlen(value) <= 12000 && !strncmp(value, "v=0", 3);
     }
     if (!strcmp(kind, "candidate")) {
         J *candidate = field(body, "candidate");

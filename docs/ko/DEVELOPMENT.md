@@ -2,7 +2,7 @@
 
 **언어:** [English](../DEVELOPMENT.md) | [한국어](DEVELOPMENT.md)
 
-> 기준 소스: ArcDrop `0.1.0-r8`. 2026-11-17.
+> 기준 소스: ArcDrop `0.1.0-r9`. 2026-11-17.
 >
 > 개발·테스트·디자인 미리보기를 위한 문서입니다. **정적 UI 미리보기와 실제 WebRTC 전송 테스트는 별개**입니다.
 
@@ -214,3 +214,7 @@ find bin/packages -name 'smartsafehub-app-arcdrop*.apk'
 - [ ] 릴리스 시 Makefile 버전, 화면 버전, 영어 CHANGELOG 및 한국어 문서 동기화
 - [ ] CHANGELOG 릴리스 블록 사이에 빈 줄을 하나만 유지
 - [ ] 실기기 E2E 미검증 사항을 완료로 표기하지 않음
+
+### ICE 시그널링 (0.1.0-r9)
+
+Offer/Answer를 전송하기 전 로컬 ICE 후보 수집을 최대 10초간 기다리고 SDP에 함께 포함합니다. 이전 버전의 개별 ICE 후보 메시지도 수신할 수 있습니다. 외부 STUN/TURN 서버나 공유기의 파일 중계 기능은 추가하지 않았습니다. LAN 경로가 막혀 있으면 여전히 연결에 실패할 수 있습니다.

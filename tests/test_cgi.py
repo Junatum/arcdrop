@@ -227,6 +227,26 @@ class ArcDropCGITests(unittest.TestCase):
         self.assertEqual(self.call('signal', {**a, 'to': b['id'], 'kind': 'offer', 'body': offer})[0], 200)
         self.assertEqual(self.call('poll', b)[1]['messages'][0]['body'], offer)
 
+    def test_수집된_ICE_후보가_포함된_SDP를_크기_제한_내에서_전달한다(self):
+        a, b = self.session('Mac'), self.session('iPad')
+        status, _ = self.call('signal', {**a, 'to': b['id'], 'kind': 'invite',
+            'body': {'name': 'sample.txt', 'size': 10}})
+        self.assertEqual(status, 200)
+        status, _ = self.call('signal', {**b, 'to': a['id'], 'kind': 'accept', 'body': {}})
+        self.assertEqual(status, 200)
+        sdp = 'v=0\r\n' + 'a' * 10500 + '\r\na=candidate:host'
+        status, _ = self.call('signal', {**a, 'to': b['id'], 'kind': 'offer',
+            'body': {'sdp': {'type': 'offer', 'sdp': sdp}}})
+        self.assertEqual(status, 200)
+        status, queued = self.call('poll', b)
+        self.assertEqual(status, 200)
+        self.assertEqual(queued['messages'][-1]['body']['sdp']['sdp'], sdp)
+        excessive = 'v=0\r\n' + 'a' * 12100
+        status, result = self.call('signal', {**a, 'to': b['id'], 'kind': 'offer',
+            'body': {'sdp': {'type': 'offer', 'sdp': excessive}}})
+        self.assertEqual(status, 400)
+        self.assertIn('invalid signal', result['error'])
+
     def test_파일_본문_업로드는_허용하지_않는다(self):
         a, b = self.session('A'), self.session('B')
         for kind, body in [('file', {'data': 'c29tZSBieXRlcw=='}),

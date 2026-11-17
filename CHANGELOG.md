@@ -2,6 +2,19 @@
 
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
+## 0.1.0-r9 (2026-11-17)
+
+### Fixed
+- Wait for ICE gathering before sending the offer or answer, so local LAN candidates are included in SDP and signaling does not depend on independently ordered candidate requests.
+- Continue processing remaining legacy ICE candidates when an individual candidate is rejected by the browser.
+
+### Improved
+- Report ICE gathering timeouts and missing LAN candidates explicitly without adding public STUN/TURN servers or relaying file data through the router.
+- Permit a modestly larger bounded SDP payload for gathered LAN candidates.
+
+### Tests
+- Added Firefox/WebKit-style asynchronous ICE gathering and both signaling-direction regression tests, rejected-candidate isolation, and SDP size-bound checks.
+
 ## 0.1.0-r8 (2026-11-17)
 
 ### Fixed

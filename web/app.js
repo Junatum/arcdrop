@@ -4,6 +4,7 @@ const LIMIT = 64 * 1024 * 1024;
 const CHUNK = 16 * 1024;
 const API = '/cgi-bin/arcdrop';
 const rtcConfig = { iceServers: [] }; // No external STUN/TURN; LAN P2P only.
+const ICE_GATHER_TIMEOUT_MS = 10000;
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const sizeText = (n) => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MiB` : `${(n / 1024).toFixed(1)} KiB`;
@@ -203,30 +204,71 @@ async function declineIncoming() {
 function createConnection(t) {
   const pc = new RTCPeerConnection(rtcConfig);
   t.pc = pc;
-  pc.onicecandidate = (event) => {
-    if (event.candidate && state.active === t)
-      void signal(t.peerId, 'candidate', { candidate: event.candidate.toJSON() })
-        .catch((err) => { if (state.active === t) void cancelTransfer(err.message); });
-  };
+  // Gather local LAN candidates into the SDP before signaling. Safari/WebKit
+  // and Firefox can otherwise observe candidate/SDP events in a different
+  // order when each trickled candidate uses a separate CGI request.
   pc.onconnectionstatechange = () => {
     if (state.active !== t) return;
-    // Closing the peer connection after a successful ACK is not a failure.
-    if (!t.finished && (pc.connectionState === 'failed' || pc.connectionState === 'closed'))
+    if (!t.finished && pc.connectionState === 'failed')
+      void cancelTransfer('기기 간 ICE 연결에 실패했습니다. 동일한 LAN과 무선 격리 설정을 확인해주세요.', false);
+    else if (!t.finished && pc.connectionState === 'closed')
       void cancelTransfer('기기 간 직접 연결이 종료되었습니다.', false);
   };
   if (t.role === 'receiver') pc.ondatachannel = (event) => installChannel(t, event.channel);
   return pc;
 }
+function waitForIceGathering(pc) {
+  if (pc.iceGatheringState === 'complete') return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let timeout;
+    function finish(error) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      pc.removeEventListener('icegatheringstatechange', onChange);
+      pc.removeEventListener('signalingstatechange', onChange);
+      if (error) reject(error);
+      else resolve();
+    }
+    function onChange() {
+      if (pc.iceGatheringState === 'complete') finish();
+      else if (pc.signalingState === 'closed') finish(new Error('ICE 후보 수집이 중단되었습니다.'));
+    }
+    pc.addEventListener('icegatheringstatechange', onChange);
+    pc.addEventListener('signalingstatechange', onChange);
+    timeout = setTimeout(() => finish(new Error('ICE 후보 수집 시간이 초과되었습니다. 브라우저 네트워크 설정을 확인해주세요.')), ICE_GATHER_TIMEOUT_MS);
+    onChange();
+  });
+}
+async function localSdpWithCandidates(pc) {
+  await waitForIceGathering(pc);
+  const sdp = pc.localDescription?.toJSON();
+  if (!sdp || !/a=candidate:/i.test(sdp.sdp))
+    throw new Error('LAN 연결을 위한 ICE 후보가 생성되지 않았습니다. 브라우저의 네트워크 접근 권한을 확인해주세요.');
+  return sdp;
+}
+async function addRemoteCandidate(t, candidate) {
+  if (state.active !== t || !t.pc || t.pc.signalingState === 'closed') return;
+  try { await t.pc.addIceCandidate(candidate); }
+  catch (err) {
+    // Older ArcDrop versions still trickle ICE candidates. A single
+    // browser-specific/mDNS candidate failure must not discard the other
+    // candidates delivered by the same poll response.
+    console.warn('ArcDrop: remote ICE candidate was rejected', err?.name || 'unknown');
+  }
+}
 async function addPendingCandidates(t) {
   if (!t.pc?.remoteDescription) return;
-  for (const candidate of t.candidates.splice(0)) await t.pc.addIceCandidate(candidate);
+  for (const candidate of t.candidates.splice(0)) await addRemoteCandidate(t, candidate);
 }
 async function makeOffer(t) {
   const pc = createConnection(t);
   const channel = pc.createDataChannel('arcdrop-file', { ordered: true });
   installChannel(t, channel);
   await pc.setLocalDescription(await pc.createOffer());
-  await signal(t.peerId, 'offer', { sdp: pc.localDescription.toJSON() });
+  const sdp = await localSdpWithCandidates(pc);
+  if (state.active === t) await signal(t.peerId, 'offer', { sdp });
 }
 async function handleSignal(message) {
   const { from, kind, body } = message;
@@ -252,14 +294,16 @@ async function handleSignal(message) {
     await pc.setRemoteDescription(body.sdp);
     await addPendingCandidates(t);
     await pc.setLocalDescription(await pc.createAnswer());
-    await signal(t.peerId, 'answer', { sdp: pc.localDescription.toJSON() }); return;
+    const sdp = await localSdpWithCandidates(pc);
+    if (state.active === t) await signal(t.peerId, 'answer', { sdp });
+    return;
   }
   if (kind === 'answer' && t.role === 'sender' && t.pc && body?.sdp?.type === 'answer') {
     await t.pc.setRemoteDescription(body.sdp);
     await addPendingCandidates(t); return;
   }
   if (kind === 'candidate' && body?.candidate) {
-    if (t.pc?.remoteDescription) await t.pc.addIceCandidate(body.candidate);
+    if (t.pc?.remoteDescription) await addRemoteCandidate(t, body.candidate);
     else if (t.candidates.length < 40) t.candidates.push(body.candidate);
   }
 }

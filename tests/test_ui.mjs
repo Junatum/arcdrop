@@ -295,3 +295,119 @@ test('송신 확인 ACK 이후 연결 종료도 오류 메시지를 발생시키
   assert.equal(get('notice').classList.contains('hidden'), true);
   assert.match(get('toast').textContent, /전송이 완료/);
 });
+
+// Reproduce Firefox/Gecko ↔ iPadOS/WebKit signaling without requiring a
+// browser, network, or STUN server. The mock holds ICE gathering until the
+// test explicitly releases it, so an early SDP send is detected.
+class GatheringPeerConnection {
+  static instances = [];
+  constructor() {
+    this.listeners = new Map(); this.iceGatheringState = 'new';
+    this.signalingState = 'stable'; this.connectionState = 'new';
+    this.localDescription = null; this.remoteDescription = null;
+    this.addedCandidates = [];
+    GatheringPeerConnection.instances.push(this);
+  }
+  addEventListener(type, fn) {
+    if (!this.listeners.has(type)) this.listeners.set(type, new Set());
+    this.listeners.get(type).add(fn);
+  }
+  removeEventListener(type, fn) { this.listeners.get(type)?.delete(fn); }
+  trigger(type) { for (const fn of this.listeners.get(type) || []) fn(); }
+  createDataChannel() { return { readyState: 'connecting', close() {} }; }
+  async createOffer() { return { type: 'offer', sdp: 'v=0\r\no=offer' }; }
+  async createAnswer() { return { type: 'answer', sdp: 'v=0\r\no=answer' }; }
+  async setLocalDescription(desc) {
+    this.localDescription = {
+      toJSON: () => ({ type: desc.type, sdp: `${desc.sdp}\r\na=candidate:1 1 udp 1 192.168.1.5 45678 typ host\r\n` }),
+    };
+    this.iceGatheringState = 'gathering';
+  }
+  async setRemoteDescription(desc) { this.remoteDescription = desc; }
+  async addIceCandidate(candidate) {
+    if (candidate.candidate === 'bad') throw new Error('mDNS lookup failed');
+    this.addedCandidates.push(candidate.candidate);
+  }
+  completeIce() { this.iceGatheringState = 'complete'; this.trigger('icegatheringstatechange'); }
+  close() { this.connectionState = 'closed'; this.signalingState = 'closed'; }
+}
+function gatheringRuntime() {
+  GatheringPeerConnection.instances.length = 0;
+  const runtime = createBrowserRuntime();
+  const signals = [];
+  const warnings = [];
+  runtime.context.console = { warn: (message) => warnings.push(message) };
+  runtime.context.RTCPeerConnection = GatheringPeerConnection;
+  runtime.context.testSignals = signals;
+  vm.runInContext('signal = async (to, kind, body) => { testSignals.push({to, kind, body}); }', runtime.context);
+  return { ...runtime, signals, warnings };
+}
+
+test('Mac 송신 Offer는 로컬 ICE 수집 완료 후 후보를 포함해 한 번만 전달한다', async () => {
+  const { context, signals } = gatheringRuntime();
+  const promise = vm.runInContext(`(() => {
+    const t = { peerId: 'ipad', role: 'sender', candidates: [], finished: false };
+    state.active = t;
+    return makeOffer(t);
+  })()`, context);
+  await new Promise((resolve) => setImmediate(resolve));
+  const pc = GatheringPeerConnection.instances.at(-1);
+  assert.equal(pc.iceGatheringState, 'gathering');
+  assert.equal(signals.length, 0, 'ICE 완료 전 Offer를 보내지 않아야 함');
+  pc.completeIce();
+  await promise;
+  assert.equal(signals.length, 1);
+  assert.equal(signals[0].kind, 'offer');
+  assert.match(signals[0].body.sdp.sdp, /a=candidate:.*typ host/);
+  assert.equal(signals.filter((s) => s.kind === 'candidate').length, 0);
+});
+
+test('iPad 수신 Answer는 ICE 완료 후 전송하고 실패한 구형 후보도 다른 후보를 막지 않는다', async () => {
+  const { context, signals, warnings } = gatheringRuntime();
+  const promise = vm.runInContext(`(() => {
+    state.active = { peerId: 'mac', role: 'receiver', candidates: [
+      {candidate: 'bad'}, {candidate: 'good'}
+    ], finished: false };
+    return handleSignal({from:'mac', kind:'offer', body:{
+      sdp: {type:'offer', sdp:'v=0\\r\\na=candidate:old'}
+    }});
+  })()`, context);
+  await new Promise((resolve) => setImmediate(resolve));
+  const pc = GatheringPeerConnection.instances.at(-1);
+  assert.deepEqual(pc.addedCandidates, ['good']);
+  assert.equal(warnings.length, 1, '오래된 클라이언트의 잘못된 후보는 경고만 남김');
+  assert.equal(signals.length, 0, 'ICE 완료 전 Answer를 보내지 않아야 함');
+  pc.completeIce();
+  await promise;
+  assert.equal(signals.length, 1);
+  assert.equal(signals[0].kind, 'answer');
+  assert.match(signals[0].body.sdp.sdp, /a=candidate:/);
+  assert.equal(vm.runInContext('state.active.peerId', context), 'mac');
+});
+
+test('후보 수집 시간 초과 시 무한 대기하지 않고 이벤트 리스너를 정리한다', async () => {
+  const { context, timers } = gatheringRuntime();
+  const pc = new GatheringPeerConnection();
+  context.testPc = pc;
+  const promise = vm.runInContext('waitForIceGathering(testPc)', context);
+  assert.equal(pc.listeners.get('icegatheringstatechange').size, 1);
+  timers.at(-1)();
+  await assert.rejects(promise, /ICE 후보 수집 시간이 초과/);
+  assert.equal(pc.listeners.get('icegatheringstatechange').size, 0);
+  assert.equal(pc.listeners.get('signalingstatechange').size, 0);
+});
+
+test('기존 CGI 후보 메시지의 오류가 다음 후보 처리를 중단하지 않는다', async () => {
+  const { context, warnings } = gatheringRuntime();
+  const pc = new GatheringPeerConnection();
+  pc.remoteDescription = {type: 'offer', sdp:'v=0'};
+  context.testPc = pc;
+  await vm.runInContext(`(() => {
+    state.active = { peerId:'remote', role:'receiver', pc:testPc, candidates: [] };
+    return handleSignal({ from:'remote', kind:'candidate', body:{candidate:{candidate:'bad'}} });
+  })()`, context);
+  await vm.runInContext(`handleSignal({from:'remote',kind:'candidate',body:{candidate:{candidate:'good'}}})`, context);
+  assert.deepEqual(pc.addedCandidates, ['good']);
+  assert.equal(warnings.length, 1);
+  assert.equal(vm.runInContext('state.active.peerId', context), 'remote');
+});
