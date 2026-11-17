@@ -39,6 +39,7 @@
       <span class="demo-label">DESIGN PREVIEW · 실제 전송 없음</span>
       <button type="button" data-demo="peers">주변 기기</button>
       <button type="button" data-demo="empty">기기 없음</button>
+      <button type="button" data-demo="presence">기기 상태</button>
       <button type="button" data-demo="incoming">수신 요청</button>
       <button type="button" data-demo="transfer">전송 중</button>
       <button type="button" data-demo="complete">전송 완료</button>
@@ -54,7 +55,7 @@
           <span class="self-subtitle">내 기기</span>
         </div>
         <div id="devices" class="peers" aria-label="파일을 보낼 주변 기기"></div>
-        <div class="discovery-bottom"><p id="peer-count" class="peer-count" aria-live="polite">주변 기기 검색 중</p><p id="empty-hint" class="empty-hint">다른 기기에서 ArcDrop을 열면 이곳에 나타납니다.</p></div>
+        <div class="discovery-bottom"><p id="peer-count" class="peer-count" aria-live="polite">주변 기기 검색 중</p></div>
       </section>
       <input id="file-input" type="file" class="visually-hidden" aria-label="선택한 기기로 보낼 파일">
       <p class="privacy-note"><svg class="icon" aria-hidden="true"><use href="#icon-check"/></svg> 같은 로컬 네트워크에서 기기 간 직접 전송 · 공유기에 파일을 저장하지 않습니다.</p>

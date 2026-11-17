@@ -2,7 +2,7 @@
 
 **Languages:** [English](DEVELOPMENT.md) | [한국어](ko/DEVELOPMENT.md)
 
-This guide describes ArcDrop **0.1.0-r10** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
+This guide describes ArcDrop **0.1.0-r11** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
 
 ## 1. Overview
 
@@ -172,3 +172,15 @@ Offer and answer are sent after local ICE gathering completes (up to 10 seconds)
 - Closing a tab may leave a stale device visible for up to the 45-second session TTL. This is intentional to avoid racing `sendBeacon` leave requests against page reload and tab restoration. A different tab maintains a different session.
 
 Test with `node --test --test-reporter=tap tests/test_discovery.mjs` and `shellspec`. For real device validation, background an iPad tab for over 45 seconds, return, and verify rediscovery without a full reload. Confirm naming and icon edits are reflected on another device and that file transfers still succeed in both directions.
+
+### Adaptive discovery polling (0.1.0-r11)
+
+The browser sends optional `visible` and `busy` boolean hints with its regular `poll` request. The native CGI rejects malformed hints but remains compatible with older clients that omit them. The `peers` response exposes an advisory status based on the last poll (recent: 8 seconds), current visibility, and a transfer flag: `available`, `busy`, `away`, or `stale`. These hints are **not authentication**, proof of physical proximity, or a promise of direct WebRTC connectivity.
+
+- Signal polling: **1,800 ms** idle foreground, **700 ms** active transfer, **12,000 ms** idle background.
+- Peer-list refresh: **6,500 ms** idle, **3,500 ms** active.
+- Temporary CGI failures use bounded backoff; they must not cancel an otherwise functioning WebRTC data channel.
+- Hidden tabs skip peer-list refreshes. `visibilitychange` wakes a waiting polling loop. Browser timer throttling can delay these intervals, and a session expires after 45 seconds without successful requests.
+- The actual router remains LAN-only, with no STUN/TURN service or file-content relay.
+
+Run `shellspec` after edits. The CGI presence tests and Node discovery tests cover stale and legacy states, timer selection, and mobile resumption. The design preview uses simulated peers and must not be used to claim that live presence works.

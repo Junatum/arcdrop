@@ -5,6 +5,13 @@ const CHUNK = 16 * 1024;
 const API = '/cgi-bin/arcdrop';
 const rtcConfig = { iceServers: [] }; // No external STUN/TURN; LAN P2P only.
 const ICE_GATHER_TIMEOUT_MS = 10000;
+// Poll frequently during a transfer, but reduce idle/background CGI traffic.
+// The server expires sessions after 45 seconds, including when backgrounded.
+const POLL_ACTIVE_MS = 700;
+const POLL_IDLE_MS = 1800;
+const POLL_HIDDEN_MS = 12000;
+const PEERS_ACTIVE_MS = 3500;
+const PEERS_IDLE_MS = 6500;
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const sizeText = (n) => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MiB` : `${(n / 1024).toFixed(1)} KiB`;
@@ -12,6 +19,22 @@ const state = { session: null, peers: [], active: null, incoming: null, selected
 let connectPromise = null;
 let refreshSequence = 0;
 let toastTimer = null;
+let pollWake = null;
+function discoveryBusy() { return !!(state.active || state.incoming); }
+function pollInterval() {
+  if (discoveryBusy()) return POLL_ACTIVE_MS;
+  return document.visibilityState === 'hidden' ? POLL_HIDDEN_MS : POLL_IDLE_MS;
+}
+function peerRefreshInterval() { return discoveryBusy() ? PEERS_ACTIVE_MS : PEERS_IDLE_MS; }
+function pollWait(ms) {
+  return new Promise((resolve) => {
+    let timer;
+    const finish = () => { clearTimeout(timer); if (pollWake === finish) pollWake = null; resolve(); };
+    pollWake = finish;
+    timer = setTimeout(finish, ms);
+  });
+}
+function wakePoll() { if (pollWake) pollWake(); }
 
 function setConnectionStatus(status, label) {
   $('connection-status').dataset.status = status;
@@ -154,6 +177,7 @@ function resetTransfer() {
   }
   state.active = null;
   state.incoming = null;
+  wakePoll();
   show('incoming', false);
   show('transfer', false);
   renderPeers();
@@ -200,7 +224,7 @@ function peerButton(peer) {
   const title = document.createElement('span'); title.className = 'peer-name';
   const subtitle = document.createElement('span'); subtitle.className = 'peer-action'; subtitle.textContent = '파일 보내기';
   btn.append(orb, title, subtitle);
-  const entry = { btn, use, title, peer };
+  const entry = { btn, use, title, subtitle, peer };
   btn.addEventListener('click', () => choosePeerFile(entry.peer));
   btn.addEventListener('dragover', (event) => {
     if (btn.disabled || !event.dataTransfer?.types.includes('Files')) return;
@@ -215,7 +239,6 @@ function renderPeers() {
   const count = state.peers.length;
   $('peer-count').textContent = count ? `주변 기기 ${count}대` : '주변 기기를 찾는 중';
   $('discovery').dataset.density = count > 6 ? 'many' : 'radial';
-  $('discovery').dataset.empty = count ? 'false' : 'true';
   $('discovery').dataset.rows = String(Math.min(Math.ceil(count / 2), 6));
   const next = new Set(state.peers.map((peer) => peer.id));
   for (const peer of state.peers) {
@@ -234,8 +257,15 @@ function renderPeers() {
     entry.peer = peer;
     entry.title.textContent = peer.name;
     entry.use.setAttribute('href', `#icon-${deviceIcon(peer)}`);
-    entry.btn.setAttribute('aria-label', `${peer.name}에 파일 보내기`);
-    entry.btn.disabled = !!(state.active || state.incoming);
+    // Server presence is advisory and may lag by one poll; never treat it
+    // as proof that a WebRTC path is available.
+    const status = ['busy', 'away', 'stale'].includes(peer.status) ? peer.status : 'available';
+    const label = status === 'busy' ? '전송 중' : status === 'away' ? '자리 비움' :
+      status === 'stale' ? '응답 지연' : '파일 보내기';
+    entry.subtitle.textContent = label;
+    entry.btn.dataset.presence = status;
+    entry.btn.setAttribute('aria-label', `${peer.name} · ${label}`);
+    entry.btn.disabled = discoveryBusy() || status !== 'available';
     const slot = state.peerSlots.get(peer.id);
     for (let i = 0; i < 6; i++) entry.btn.classList.toggle(`peer-slot-${i}`, count <= 6 && slot === i);
     nodes.push(entry.btn);
@@ -258,6 +288,7 @@ async function beginInvite(peer, file) {
   cleanDownload();
   const active = { peerId: peer.id, peerName: peer.name, role: 'sender', file, pc: null, channel: null, candidates: [], received: [], bytes: 0, timeout: null };
   state.active = active;
+  wakePoll();
   armTimeout(active); renderPeers();
   progress('승인 대기 중', 0, file.size, `${peer.name}에서 수신 승인을 기다립니다.`);
   try { await signal(peer.id, 'invite', { name: file.name, size: file.size }); }
@@ -270,6 +301,7 @@ async function acceptIncoming() {
   const t = { peerId: request.from, peerName: request.sender, role: 'receiver',
     offer: request.body, pc: null, channel: null, candidates: [], received: [], bytes: 0, timeout: null };
   state.active = t;
+  wakePoll();
   armTimeout(t); renderPeers();
   progress('수신 준비 중', 0, t.offer.size, `${t.peerName}와 직접 연결합니다.`);
   try { await signal(t.peerId, 'accept'); }
@@ -277,7 +309,7 @@ async function acceptIncoming() {
 }
 async function declineIncoming() {
   const request = state.incoming;
-  state.incoming = null; show('incoming', false); renderPeers();
+  state.incoming = null; show('incoming', false); wakePoll(); renderPeers();
   if (request) try { await signal(request.from, 'decline'); } catch { /* disconnected */ }
 }
 function createConnection(t) {
@@ -359,6 +391,7 @@ async function handleSignal(message) {
     }
     const sender = state.peers.find((x) => x.id === from)?.name || '다른 기기';
     state.incoming = { from, sender, body };
+    wakePoll();
     $('incoming-title').textContent = `${sender}에서 파일을 보내려고 합니다.`;
     $('incoming-detail').textContent = `${body.name} · ${sizeText(body.size)}`;
     show('incoming', true); renderPeers();
@@ -497,18 +530,32 @@ async function ensureSession() {
   return connectPromise;
 }
 async function loop(loopId) {
-  let turn = 0;
+  let lastPeerRefresh = Date.now();
+  let failures = 0;
   while (state.running && state.session && state.loopId === loopId) {
     const session = state.session;
+    let delay = pollInterval();
     try {
-      const payload = await api('poll');
+      const payload = await api('poll', {
+        visible: document.visibilityState !== 'hidden', busy: discoveryBusy(),
+      });
       if (!state.running || state.loopId !== loopId || session !== state.session) return;
+      // A failed peer-list refresh must not abort a healthy WebRTC transfer.
       for (const message of payload.messages || []) await handleSignal(message);
+      if (failures) notice('');
+      failures = 0;
       setConnectionStatus('online', '로컬 연결');
-      if (turn++ % 3 === 0) await refreshPeers();
+      if (document.visibilityState !== 'hidden' &&
+          Date.now() - lastPeerRefresh >= peerRefreshInterval()) {
+        try { await refreshPeers(); lastPeerRefresh = Date.now(); }
+        catch (err) {
+          if (invalidSession(err)) throw err;
+          console.warn('ArcDrop: peer discovery refresh failed', err?.message || 'unknown');
+        }
+      }
+      delay = pollInterval();
     } catch (err) {
       if (state.loopId !== loopId) return;
-      if (state.active && !state.active.finished) await cancelTransfer(`연결 오류: ${err.message}`, false);
       if (invalidSession(err)) {
         state.running = false;
         state.session = null;
@@ -520,15 +567,20 @@ async function loop(loopId) {
           });
         return;
       }
-      setConnectionStatus('error', '재연결 중');
-      notice(`연결을 다시 시도합니다: ${err.message}`, true);
+      // Transient CGI polling errors do not mean the direct data channel
+      // failed. Keep an ongoing transfer alive and let its own timeout decide.
+      failures++;
+      delay = Math.min(12000, 1800 * (2 ** Math.min(3, failures - 1)));
+      if (failures === 1) setConnectionStatus('error', '재연결 중');
+      if (failures === 2) notice(`서버 연결 재시도 중: ${err.message}`, true);
     }
-    await sleep(1100);
+    if (!state.running || state.loopId !== loopId) return;
+    await pollWait(delay);
   }
 }
 async function resumeDiscovery() {
   if (document.visibilityState === 'hidden' || navigator.onLine === false) return;
-  try { await ensureSession(); }
+  try { await ensureSession(); wakePoll(); }
   catch (err) { setConnectionStatus('error', '재연결 대기'); notice(`연결 복구 실패: ${err.message}`, true); }
 }
 async function start() {
@@ -587,11 +639,13 @@ $('device-save').addEventListener('click', async () => {
 window.addEventListener('pagehide', () => {
   state.running = false;
   ++state.loopId;
+  wakePoll();
   if (toastTimer) clearTimeout(toastTimer);
   if (state.active) resetTransfer();
   cleanDownload();
 });
 document.addEventListener('visibilitychange', () => {
+  wakePoll();
   if (document.visibilityState === 'visible') void resumeDiscovery();
 });
 window.addEventListener('pageshow', (event) => {

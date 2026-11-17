@@ -45,3 +45,7 @@ The CGI requires HTTPS and same-origin JSON requests. Session credentials are sh
 - ShellSpec contracts cover CGI, browser code, UI, packaging, and docs. An optional Playwright E2E test exists; real supported-device validation remains outstanding.
 
 See [deployment security](DEPLOYMENT.md), [installation](INSTALLATION.md), and [development](DEVELOPMENT.md).
+
+## Advisory peer presence (0.1.0-r11)
+
+The CGI continues to authenticate each short-lived session, then records optional browser-poll hints (`visible`, `busy`) and the last poll time under `/tmp/arcdrop`. On a peer-list request, it returns an advisory presence label when a poll has occurred. A recent foreground poll indicates availability, while an in-progress transfer, a background tab, or a delayed response is labeled separately. UI availability **does not authorize signaling, prove ICE reachability, or substitute for explicit acceptance**. Legacy clients with missing presence fields retain their previous discovery behavior. Data payloads continue to bypass the router.

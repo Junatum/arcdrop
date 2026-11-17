@@ -67,7 +67,7 @@ function setup({ blocked = false, local = {}, tab = {}, responses = {} } = {}) {
     setTimeout, clearTimeout, console, TextEncoder, Blob });
   vm.runInContext(app, context, {filename: 'app.js'});
   // The unit test controls polling explicitly to avoid asynchronous timers.
-  vm.runInContext('loop = async () => {}', context);
+  vm.runInContext('globalThis.__realLoop = loop; loop = async () => {}', context);
   return {context, get, requests, responses, sessionStorage, localStorage, windowEvents, documentEvents,
     document, location, window, selfIcon};
 }
@@ -193,4 +193,114 @@ test('스토리지 getter 자체가 예외를 던져도 기기 등록은 성공�
   await evaluate(t, 'ensureSession()');
   assert.deepEqual(t.requests.map((x) => x.action), ['register','peers']);
   assert.equal(evaluate(t, 'state.session.id'), 'a'.repeat(24));
+});
+
+
+test('폴링 간격은 대기·전송·백그라운드 상태에 따라 조절된다', () => {
+  const t = setup();
+  assert.equal(evaluate(t, 'pollInterval()'), 1800);
+  assert.equal(evaluate(t, 'peerRefreshInterval()'), 6500);
+  t.document.visibilityState = 'hidden';
+  assert.equal(evaluate(t, 'pollInterval()'), 12000);
+  evaluate(t, 'state.incoming = {from: "peer"}');
+  assert.equal(evaluate(t, 'pollInterval()'), 700);
+  assert.equal(evaluate(t, 'peerRefreshInterval()'), 3500);
+});
+
+test('실제 폴링은 선택적인 가시성 및 전송 상태를 서버로 전달한다', async () => {
+  const t = setup(); await evaluate(t, 'ensureSession()');
+  t.requests.length = 0;
+  // Execute the real production loop once, without sleeping in the test.
+  evaluate(t, 'pollWait = async () => { state.running = false; }');
+  await evaluate(t, '__realLoop(state.loopId)');
+  assert.equal(t.requests[0].action, 'poll');
+  assert.equal(t.requests[0].data.visible, true);
+  assert.equal(t.requests[0].data.busy, false);
+  t.document.visibilityState = 'hidden';
+  evaluate(t, 'state.running = true; state.active = { peerId:"x" }');
+  t.requests.length = 0;
+  await evaluate(t, '__realLoop(state.loopId)');
+  assert.equal(t.requests[0].data.visible, false);
+  assert.equal(t.requests[0].data.busy, true);
+});
+
+test('주변 기기의 전송 중·자리 비움·응답 지연 상태를 별도로 표시한다', () => {
+  const t = setup();
+  for (const [status, label, disabled] of [
+    ['available','파일 보내기',false], ['busy','전송 중',true],
+    ['away','자리 비움',true], ['stale','응답 지연',true],
+  ]) {
+    t.context.list = [{id:'test',name:'iPad',deviceType:'tablet',status}];
+    evaluate(t, 'updatePeers(list)');
+    const peer = t.get('devices').children[0];
+    assert.equal(peer.dataset.presence, status);
+    assert.equal(peer.children[2].textContent, label);
+    assert.equal(peer.disabled, disabled);
+  }
+  // Older clients' rows have no presence field; do not lock them out.
+  t.context.list = [{id:'test',name:'Old Peer'}];
+  evaluate(t, 'updatePeers(list)');
+  assert.equal(t.get('devices').children[0].disabled, false);
+});
+
+test('일시적인 CGI poll 오류는 전송 중 WebRTC 채널을 취소하지 않는다', async () => {
+  const t = setup({responses: {poll: {status: 503, body: {error:'temporary outage'}}}});
+  await evaluate(t, 'ensureSession()');
+  evaluate(t, 'state.active = {peerId:"ipad",role:"sender"}');
+  evaluate(t, 'pollWait = async () => { state.running = false; }');
+  await evaluate(t, '__realLoop(state.loopId)');
+  assert.equal(evaluate(t, 'state.active.peerId'), 'ipad');
+  assert.equal(t.get('connection-label').textContent, '재연결 중');
+});
+
+test('모바일이 다시 표시되면 느린 백그라운드 폴링 대기를 깨운다', async () => {
+  const t = setup(); await evaluate(t, 'ensureSession()');
+  let resolvePoll;
+  evaluate(t, 'globalThis.__waitResult = pollWait(12000)');
+  t.document.visibilityState = 'visible';
+  t.documentEvents.get('visibilitychange')();
+  await evaluate(t, '__waitResult');
+  assert.equal(evaluate(t, 'pollWake'), null);
+  // A visible tab should validate its existing session, not register again.
+  await evaluate(t, 'connectPromise');
+  assert.equal(t.requests.filter((item) => item.action === 'register').length, 1);
+});
+
+test('CGI 연속 실패는 요청 간격을 늘리고 최대 12초로 제한한다', async () => {
+  const t = setup({responses: {poll: {status: 503, body: {error:'temporary outage'}}}});
+  await evaluate(t, 'ensureSession()');
+  evaluate(t, `globalThis.__delays = [];
+    pollWait = async (delay) => {
+      __delays.push(delay);
+      if (__delays.length === 4) state.running = false;
+    };`);
+  await evaluate(t, '__realLoop(state.loopId)');
+  assert.deepEqual(Array.from(evaluate(t, '__delays')), [1800, 3600, 7200, 12000]);
+  assert.equal(t.requests.filter((request) => request.action === 'poll').length, 4);
+});
+
+test('주변 기기 목록 조회 실패는 정상 파일 전송이나 신호 폴링을 취소하지 않는다', async () => {
+  const t = setup();
+  await evaluate(t, 'ensureSession()');
+  t.responses.peers = {status:503, body:{error:'peer discovery temporarily unavailable'}};
+  t.context.Date = { now: (() => { let reads = 0; return () => reads++ === 0 ? 0 : 10000; })() };
+  evaluate(t, `state.active = {peerId:'ipad', role:'sender'};
+    pollWait = async () => { state.running = false; };`);
+  await evaluate(t, '__realLoop(state.loopId)');
+  assert.equal(evaluate(t, 'state.active.peerId'), 'ipad');
+  assert.equal(t.get('connection-label').textContent, '로컬 연결');
+  assert.ok(t.requests.some((request) => request.action === 'peers'));
+});
+
+
+test('백그라운드에서는 기기 목록 조회를 생략해 공유기 부하를 줄인다', async () => {
+  const t = setup();
+  await evaluate(t, 'ensureSession()');
+  t.requests.length = 0;
+  t.document.visibilityState = 'hidden';
+  t.context.Date = { now: (() => { let reads = 0; return () => reads++ === 0 ? 0 : 100000; })() };
+  evaluate(t, 'pollWait = async () => { state.running = false; }');
+  await evaluate(t, '__realLoop(state.loopId)');
+  assert.deepEqual(t.requests.map((request) => request.action), ['poll']);
+  assert.equal(t.requests[0].data.visible, false);
 });

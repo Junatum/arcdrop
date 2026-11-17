@@ -6,6 +6,11 @@ const SAMPLE_PEERS = [
   { id: 'preview-b', name: 'Windows PC', icon: 'desktop' },
   { id: 'preview-c', name: 'iPad Air', icon: 'tablet' },
 ];
+const PRESENCE_PEERS = [
+  {...SAMPLE_PEERS[0], status: 'available'},
+  {...SAMPLE_PEERS[1], status: 'busy'},
+  {...SAMPLE_PEERS[2], status: 'away'},
+];
 const dialogIds = ['incoming', 'transfer', 'download', 'help-dialog', 'device-dialog'];
 let selectedPeer = null;
 function show(id, value) {
@@ -16,13 +21,17 @@ function closeDialogs() { for (const id of dialogIds) show(id, false); }
 function renderPeers(peers) {
   $('devices').replaceChildren();
   $('discovery').dataset.density = 'radial';
-  $('discovery').dataset.empty = peers.length ? 'false' : 'true';
   $('discovery').dataset.rows = String(Math.min(Math.ceil(peers.length / 2), 6));
   $('peer-count').textContent = peers.length ? `주변 기기 ${peers.length}대` : '주변 기기를 찾는 중';
   for (const [index, peer] of peers.entries()) {
     const btn = document.createElement('button');
     btn.className = 'peer'; btn.type = 'button';
-    btn.setAttribute('aria-label', `${peer.name}에 파일 보내기`);
+    const status = ['busy', 'away', 'stale'].includes(peer.status) ? peer.status : 'available';
+    const label = status === 'busy' ? '전송 중' : status === 'away' ? '자리 비움' :
+      status === 'stale' ? '응답 지연' : '파일 보내기';
+    btn.dataset.presence = status;
+    btn.disabled = status !== 'available';
+    btn.setAttribute('aria-label', `${peer.name} · ${label}`);
     if (peers.length <= 6) btn.classList.add(`peer-pos-${peers.length}-${index}`);
     const orb = document.createElement('span'); orb.className = 'peer-orb';
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -30,7 +39,7 @@ function renderPeers(peers) {
     const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
     use.setAttribute('href', `#icon-${peer.icon}`); svg.append(use); orb.append(svg);
     const name = document.createElement('span'); name.className = 'peer-name'; name.textContent = peer.name;
-    const hint = document.createElement('span'); hint.className = 'peer-action'; hint.textContent = '파일 보내기';
+    const hint = document.createElement('span'); hint.className = 'peer-action'; hint.textContent = label;
     btn.append(orb, name, hint);
     btn.addEventListener('click', () => { selectedPeer = peer; $('file-input').value = ''; $('file-input').click(); });
     $('devices').append(btn);
@@ -43,7 +52,7 @@ function preview(mode) {
   $('connection-status').dataset.status = 'online';
   $('connection-label').textContent = '디자인 데모';
   if (mode === 'empty') renderPeers([]);
-  else renderPeers(SAMPLE_PEERS);
+  else renderPeers(mode === 'presence' ? PRESENCE_PEERS : SAMPLE_PEERS);
   if (mode === 'incoming') {
     $('incoming-title').textContent = 'iPhone 17에서 파일을 보내려고 합니다.';
     $('incoming-detail').textContent = '여행사진.jpg · 2.4 MiB (데모 데이터)';

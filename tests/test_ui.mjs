@@ -411,3 +411,28 @@ test('기존 CGI 후보 메시지의 오류가 다음 후보 처리를 중단하
   assert.equal(warnings.length, 1);
   assert.equal(vm.runInContext('state.active.peerId', context), 'remote');
 });
+
+
+test('데모도 실제 주변 기기의 전송·자리 비움 상태를 표시하지만 운영 패키지에는 포함하지 않는다', () => {
+  assert.match(demo, /data-demo="presence"/);
+  assert.match(demoJs, /const PRESENCE_PEERS =/);
+  assert.match(demoJs, /status: 'busy'/);
+  assert.match(demoJs, /status: 'away'/);
+  assert.match(demoJs, /btn\.disabled = status !== 'available'/);
+  assert.match(app, /entry\.btn\.disabled = discoveryBusy\(\) \|\| status !== 'available'/);
+  assert.match(css, /\.peer\[data-presence="away"\]/);
+  const makefile = read('Makefile');
+  assert.doesNotMatch(makefile, /INSTALL_DATA[^\n]*demo(?:\.js|\.html)/);
+});
+
+
+test('주변 기기가 없어도 중복 안내 문구 없이 탐지 상태만 표시한다', () => {
+  for (const markup of [html, demo]) {
+    assert.doesNotMatch(markup, /다른 기기에서 ArcDrop을 열면 이곳에 나타납니다\./);
+    assert.doesNotMatch(markup, /id="empty-hint"/);
+    assert.match(markup, /id="peer-count"[^>]*aria-live="polite"/);
+  }
+  assert.doesNotMatch(css, /\.empty-hint|\[data-empty=/);
+  assert.doesNotMatch(app, /dataset\.empty/);
+  assert.doesNotMatch(demoJs, /dataset\.empty/);
+});

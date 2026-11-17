@@ -34,6 +34,7 @@
 
 #define STATE_DIR "/tmp/arcdrop"
 #define PEER_TTL 45
+#define PRESENCE_TTL 8
 #define MAX_PEERS 24
 #define MAX_PER_IP 4
 #define MAX_QUEUE 32
@@ -79,6 +80,9 @@ static void addstr(J *obj, const char *key, const char *value) {
 }
 static void addint(J *obj, const char *key, int64_t value) {
     json_object_object_add(obj, key, json_object_new_int64(value));
+}
+static void addbool(J *obj, const char *key, int value) {
+    json_object_object_add(obj, key, json_object_new_boolean(value));
 }
 static int is_hex(const char *s, size_t length) {
     if (!s || strlen(s) != length) return 0;
@@ -325,6 +329,19 @@ static void list_peers(const char *id, J *peer, void *ctx) {
     addstr(row, "name", sfield(peer, "name") ? sfield(peer, "name") : "Device");
     const char *device_type = sfield(peer, "deviceType");
     if (valid_device_type(device_type)) addstr(row, "deviceType", device_type);
+    /* Presence is an advisory UI hint, not a guarantee of P2P reachability.
+       Omit it for legacy clients that have never sent a poll request. */
+    J *last_poll = field(peer, "lastPoll");
+    if (last_poll && json_object_is_type(last_poll, json_type_int)) {
+        int64_t age = (int64_t)now_time - json_object_get_int64(last_poll);
+        /* An explicitly hidden tab remains "away" between 12s polls;
+           otherwise its badge would flicker between away and stale. */
+        const char *status = age >= 0 && age <= PRESENCE_TTL &&
+            json_object_get_boolean(field(peer, "busy")) ? "busy" :
+            field(peer, "visible") && !json_object_get_boolean(field(peer, "visible")) ? "away" :
+            (age < 0 || age > PRESENCE_TTL) ? "stale" : "available";
+        addstr(row, "status", status);
+    }
     json_object_array_add(c->arr, row);
 }
 static void create_session(J *req) {
@@ -382,6 +399,18 @@ static void handle(const char *action, J *req) {
         json_object_put(me); respond(200, out);
     }
     if (!strcmp(action, "poll")) {
+        /* Optional hints preserve compatibility with previous ArcDrop clients.
+           Validate strict booleans; never use these values for authorization. */
+        J *visible = NULL, *busy = NULL;
+        int has_visible = json_object_object_get_ex(req, "visible", &visible);
+        int has_busy = json_object_object_get_ex(req, "busy", &busy);
+        if ((has_visible && (!visible || !json_object_is_type(visible, json_type_boolean))) ||
+            (has_busy && (!busy || !json_object_is_type(busy, json_type_boolean)))) {
+            json_object_put(me); error_reply(400, "invalid presence flags");
+        }
+        addint(me, "lastPoll", (int64_t)now_time);
+        addbool(me, "visible", visible ? json_object_get_boolean(visible) : 1);
+        addbool(me, "busy", busy ? json_object_get_boolean(busy) : 0);
         J *out = json_object_new_object();
         J *messages = field(me, "messages");
         json_object_object_add(out, "messages", messages ? json_object_get(messages) : json_object_new_array());

@@ -198,6 +198,43 @@ class ArcDropCGITests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(peers['peers'], [{'id': legacy['id'], 'name': 'Legacy Mac'}])
 
+    def test_탐지_상태는_최근_poll과_가시성_전송여부에_따라_변경된다(self):
+        ipad = self.session('iPad')
+        mac = self.session('Mac')
+        # Older clients with no polling status remain discoverable.
+        self.assertNotIn('status', self.call('peers', mac)[1]['peers'][0])
+        self.assertEqual(self.call('poll', {**ipad, 'visible': True, 'busy': False})[0], 200)
+        self.assertEqual(self.call('peers', mac)[1]['peers'][0]['status'], 'available')
+        self.assertEqual(self.call('poll', {**ipad, 'visible': True, 'busy': True})[0], 200)
+        self.assertEqual(self.call('peers', mac)[1]['peers'][0]['status'], 'busy')
+        self.assertEqual(self.call('poll', {**ipad, 'visible': False, 'busy': False})[0], 200)
+        self.assertEqual(self.call('peers', mac)[1]['peers'][0]['status'], 'away')
+        self.time += 9
+        self.assertEqual(self.call('peers', mac)[1]['peers'][0]['status'], 'away')
+        # Returning to the foreground makes a current peer available again.
+        self.assertEqual(self.call('poll', {**ipad, 'visible': True, 'busy': False})[0], 200)
+        self.time += 9
+        self.assertEqual(self.call('peers', mac)[1]['peers'][0]['status'], 'stale')
+        # Presence is not a separate session expiry: 18s < 45s TTL.
+        self.assertEqual(self.call('heartbeat', ipad)[0], 200)
+        # An older client without flags still receives messages and is available.
+        self.assertEqual(self.call('poll', ipad)[0], 200)
+        self.assertEqual(self.call('peers', mac)[1]['peers'][0]['status'], 'available')
+
+    def test_탐지_상태_플래그는_불리언만_허용하고_파일을_저장하지_않는다(self):
+        ipad = self.session('iPad')
+        for field in ('visible', 'busy'):
+            for bad in (0, 1, 'true', 'false', [], None, {'value': True}):
+                with self.subTest(field=field, bad=bad):
+                    status, data = self.call('poll', {**ipad, field: bad})
+                    self.assertEqual(status, 400)
+                    self.assertEqual(data['error'], 'invalid presence flags')
+        status, _ = self.call('poll', {**ipad, 'visible': True, 'busy': True})
+        self.assertEqual(status, 200)
+        state = (Path(self.tmp) / f"{ipad['id']}.json").read_text(encoding='utf-8')
+        self.assertNotIn('fileData', state)
+        self.assertNotIn('fileBytes', state)
+
     def test_기기_설정은_기존_세션을_유지하고_주변_화면을_갱신한다(self):
         ipad = self.session('iPad')
         mac = self.session('Mac')

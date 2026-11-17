@@ -5,7 +5,7 @@
 **ArcDrop — by SmartSafeHub**. Lightweight, open-source, LAN-only peer-to-peer file sharing for OpenWrt.
 
 - License: **GPL-3.0-or-later**; independent implementation, no PairDrop code or assets reused.
-- Package: `smartsafehub-app-arcdrop` (`0.1.0-r10`).
+- Package: `smartsafehub-app-arcdrop` (`0.1.0-r11`).
 - Sender/receiver browsers transfer file bytes via encrypted **WebRTC RTCDataChannel**, with `iceServers: []` (no external STUN/TURN).
 - The router only serves a small local UI and passes bounded discovery/SDP/ICE metadata; **no file bytes are sent to or stored on the router**, cloud or local disk.
 - The signaling metadata (device name, IP, session token, SDP/ICE messages) temporarily resides in `/tmp/arcdrop` (tmpfs). Session metadata expires after 45 seconds of inactivity.
@@ -110,3 +110,9 @@ python3 e2e/browser_e2e.py
 ```
 
 This optional browser test could not complete in the current sandbox because Chromium blocks localhost navigation by administrator policy; it must be run on a normal developer machine. The automated CGI and static JavaScript tests are separate and run with `shellspec`.
+
+### Discovery cadence and presence (0.1.0-r11)
+
+ArcDrop uses adaptive signaling polls: 1.8 seconds while idle, 0.7 seconds during active sends/receives, and 12 seconds while backgrounded and idle. Peer-list refreshes occur every 6.5 seconds when idle or 3.5 seconds during a transfer. Background tabs skip the peer-list lookup entirely. Returning to the tab immediately wakes discovery. These are target delays; browsers may throttle timers.
+
+The peer list can show **Send file**, **Transferring**, **Away**, or **Delayed response** based only on recent browser polling. Presence is advisory and **does not guarantee ICE/P2P reachability**. Peers marked busy or unavailable cannot be selected until they respond again. The router retains only bounded, temporary session metadata; it never receives file data.

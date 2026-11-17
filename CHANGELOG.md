@@ -2,6 +2,22 @@
 
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
+## 0.1.0-r11 (2026-11-17)
+
+### Improved
+- Reduced idle discovery CGI traffic with adaptive polling: 1.8-second foreground signal checks and 6.5-second peer-list refreshes; retain faster checks during active transfers.
+- Slowed background discovery to 12-second intervals while preserving mobile resume and session revalidation.
+- Added advisory device presence labels for available, transferring, away, and delayed-response browsers; never claim that presence guarantees a WebRTC connection.
+- Added bounded retry delays for temporary CGI errors without aborting an established direct file transfer.
+
+### Compatibility
+- Keep STUN/TURN disabled and accept poll requests from older clients without the optional presence hints.
+- Preserve the existing 45-second session expiry, HTTPS restrictions, and zero file-body storage on the router.
+
+### Tests
+- Added real CGI tests for presence state transitions, strict boolean validation, stale sessions, and legacy clients.
+- Added browser tests for adaptive polling, mobile wakeup, presence labels, and transient polling errors.
+
 ## 0.1.0-r10 (2026-11-17)
 
 ### Fixed
