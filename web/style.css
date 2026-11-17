@@ -24,3 +24,16 @@ main{width:100%;max-width:1120px;margin-inline:auto;padding-inline:30px;flex:1;d
 
 /* CSP-safe, fixed radial peer positions and responsive row heights. */
 .peer-pos-1-0{--peer-x:0px;--peer-y:-235px}.peer-pos-2-0{--peer-x:-166px;--peer-y:-166px}.peer-pos-2-1{--peer-x:166px;--peer-y:-166px}.peer-pos-3-0{--peer-x:-204px;--peer-y:-117px}.peer-pos-3-1{--peer-x:204px;--peer-y:-117px}.peer-pos-3-2{--peer-x:0px;--peer-y:190px}.peer-pos-4-0{--peer-x:-193px;--peer-y:-135px}.peer-pos-4-1{--peer-x:193px;--peer-y:-135px}.peer-pos-4-2{--peer-x:156px;--peer-y:109px}.peer-pos-4-3{--peer-x:-156px;--peer-y:109px}.peer-pos-5-0{--peer-x:-204px;--peer-y:-117px}.peer-pos-5-1{--peer-x:0px;--peer-y:-235px}.peer-pos-5-2{--peer-x:204px;--peer-y:-117px}.peer-pos-5-3{--peer-x:134px;--peer-y:134px}.peer-pos-5-4{--peer-x:-134px;--peer-y:134px}.peer-pos-6-0{--peer-x:-204px;--peer-y:-117px}.peer-pos-6-1{--peer-x:0px;--peer-y:-235px}.peer-pos-6-2{--peer-x:204px;--peer-y:-117px}.peer-pos-6-3{--peer-x:165px;--peer-y:95px}.peer-pos-6-4{--peer-x:0px;--peer-y:190px}.peer-pos-6-5{--peer-x:-165px;--peer-y:95px}.discovery[data-rows="1"]{--list-height:140px}.discovery[data-rows="2"]{--list-height:280px}.discovery[data-rows="3"]{--list-height:420px}.discovery[data-rows="4"]{--list-height:560px}.discovery[data-rows="5"]{--list-height:700px}.discovery[data-rows="6"]{--list-height:840px}
+
+/* Local device display profile; no inline styles or remote assets. */
+.device-label{display:block;text-align:left;color:var(--muted);font-size:12px;font-weight:650;margin:16px 0 7px}
+.device-field{width:100%;min-height:43px;border:1px solid var(--line);border-radius:11px;background:var(--bg);color:var(--ink);padding:10px 13px;font:inherit;font-size:14px}
+.device-field:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Stable slots: newly arriving devices do not reposition existing peers. */
+.peer-slot-0{--peer-x:0px;--peer-y:-235px}
+.peer-slot-1{--peer-x:0px;--peer-y:190px}
+.peer-slot-2{--peer-x:-204px;--peer-y:-117px}
+.peer-slot-3{--peer-x:204px;--peer-y:-117px}
+.peer-slot-4{--peer-x:-165px;--peer-y:95px}
+.peer-slot-5{--peer-x:165px;--peer-y:95px}

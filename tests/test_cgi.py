@@ -198,6 +198,42 @@ class ArcDropCGITests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(peers['peers'], [{'id': legacy['id'], 'name': 'Legacy Mac'}])
 
+    def test_기기_설정은_기존_세션을_유지하고_주변_화면을_갱신한다(self):
+        ipad = self.session('iPad')
+        mac = self.session('Mac')
+        status, _ = self.call('profile', {**ipad, 'name': 'iPad Pro', 'deviceType': 'tablet'})
+        self.assertEqual(status, 200)
+        self.assertEqual(self.call('heartbeat', ipad)[0], 200)
+        status, peers = self.call('peers', mac)
+        self.assertEqual(status, 200)
+        self.assertEqual(peers['peers'], [
+            {'id': ipad['id'], 'name': 'iPad Pro', 'deviceType': 'tablet'}
+        ])
+        # Changing the display does not rotate the session ID or token.
+        with (Path(self.tmp) / f"{ipad['id']}.json").open(encoding='utf-8') as fp:
+            stored = json.load(fp)
+        self.assertEqual(stored['token'], ipad['token'])
+
+    def test_기기_설정은_잘못된_종류와_토큰_및_긴_이름을_거부한다(self):
+        session = self.session('Original')
+        for bad in (None, '', 'router', '<svg>', 5):
+            with self.subTest(device_type=bad):
+                status, _ = self.call('profile', {
+                    **session, 'name': 'Device', 'deviceType': bad
+                })
+                self.assertEqual(status, 400)
+        status, _ = self.call('profile', {
+            **session, 'name': 'z' * 49, 'deviceType': 'tablet'
+        })
+        self.assertEqual(status, 400)
+        status, _ = self.call('profile', {
+            **session, 'token': '0' * 48, 'name': 'Hacker', 'deviceType': 'tablet'
+        })
+        self.assertEqual(status, 403)
+        with (Path(self.tmp) / f"{session['id']}.json").open(encoding='utf-8') as fp:
+            stored = json.load(fp)
+        self.assertEqual(stored['name'], 'Original')
+
     def test_초대_전에는_협상정보를_전달할_수_없다(self):
         a, b = self.session('A'), self.session('B')
         status, data = self.call('signal', {**a, 'to': b['id'], 'kind': 'offer',

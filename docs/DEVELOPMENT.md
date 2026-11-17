@@ -2,7 +2,7 @@
 
 **Languages:** [English](DEVELOPMENT.md) | [한국어](ko/DEVELOPMENT.md)
 
-This guide describes ArcDrop **0.1.0-r9** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
+This guide describes ArcDrop **0.1.0-r10** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
 
 ## 1. Overview
 
@@ -160,3 +160,15 @@ Public CA certificate issuance is **not** implemented. Accepting browser TLS war
 ### ICE signaling (0.1.0-r9)
 
 Offer and answer are sent after local ICE gathering completes (up to 10 seconds), with local candidates bundled in SDP. This reduces the candidate-order race between Firefox/Gecko and iPadOS/WebKit. Legacy trickled candidates remain accepted. No STUN/TURN service or file relay is added. A working LAN path is still required; a connection failure does not establish that STUN is necessary.
+
+### Peer discovery and mobile recovery (0.1.0-r10)
+
+- Discovery still uses the authenticated, LAN-only CGI protocol. No LAN scanning, cloud relay, or new browser runtime dependency is needed.
+- A tab-scoped `sessionStorage` token is reused after page reload or back-forward cache restoration. The session is validated by `heartbeat`; an expired session is re-registered. Tokens are never persisted in `localStorage`.
+- On `visibilitychange`, persisted `pageshow`, and `online`, the browser revalidates its session and refreshes the peer list. Background tabs are not promised continuous real-time discovery: the server expires them after 45 seconds of inactivity.
+- Peer rows keep their identities, DOM nodes, and fixed desktop radial slots while other peers appear, disappear, or the CGI returns a different directory order. More than six devices switch to the existing list layout.
+- The pencil button now opens a local device profile dialog. Display name (30 characters, 48 UTF-8 bytes maximum) and one of phone/tablet/laptop/desktop are sent to the authenticated `profile` endpoint without rotating the session or interrupting a transfer. Preference persistence is best-effort; restricted browser storage is supported.
+- **Why not Bowser?** Bowser is MIT-licensed, but UA parsing cannot reliably identify a specific MacBook or iPad hardware model. ArcDrop deliberately remains a self-contained, unbundled browser app with no extra library, CDN, or compiled frontend artifact; users can correct the displayed type manually.
+- Closing a tab may leave a stale device visible for up to the 45-second session TTL. This is intentional to avoid racing `sendBeacon` leave requests against page reload and tab restoration. A different tab maintains a different session.
+
+Test with `node --test --test-reporter=tap tests/test_discovery.mjs` and `shellspec`. For real device validation, background an iPad tab for over 45 seconds, return, and verify rediscovery without a full reload. Confirm naming and icon edits are reflected on another device and that file transfers still succeed in both directions.

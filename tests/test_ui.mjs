@@ -137,7 +137,7 @@ class Element {
   addEventListener(name, listener) { this.listeners.set(name, listener); }
   emit(name, payload = {}) { this.listeners.get(name)?.(payload); }
   append(...els) { this.children.push(...els); }
-  replaceChildren() { this.children = []; }
+  replaceChildren(...els) { this.children = [...els]; }
   setAttribute(key, value) { this.attributes[key] = value; }
   click() { this.clicked = true; this.emit('click'); }
   focus() { this.focused = true; }
@@ -151,7 +151,7 @@ test('주변 기기 클릭이 파일 선택으로 이어지고 파일 선택 후
   const requests = [];
   const sandbox = {
     document: { getElementById: get, createElement: () => new Element(),
-      createElementNS: () => new Element(), querySelector: () => null,
+      createElementNS: () => new Element(), querySelector: () => null, addEventListener: () => {},
       documentElement: { dataset: {} }, body: { classList: new Classes() } },
     window: { isSecureContext: false, addEventListener: () => {}, prompt: () => null },
     location: { protocol: 'http:' }, localStorage: { getItem: () => null, setItem: () => {} },
@@ -195,7 +195,7 @@ test('엄격한 CSP를 유지하며 인라인 스타일 없이 전송 진행률�
     assert.doesNotMatch(code, /\.style\.|setAttribute\(['"]style['"]|setProperty\(/);
     assert.match(code, /\('transfer-progress'\)\.value/);
     assert.match(code, /dataset\.rows/);
-    assert.match(code, /peer-pos-\$\{/);
+    assert.match(code, /peer-(?:pos|slot)-\$\{/);
   }
   for (const position of ['peer-pos-1-0','peer-pos-3-2','peer-pos-6-5'])
     assert.ok(css.includes(`.${position}{--peer-x:`), position);
@@ -211,7 +211,7 @@ function createBrowserRuntime(navigatorValue = {}) {
   const timers = [];
   const sandbox = {
     document: { getElementById: get, createElement: () => new Element(),
-      createElementNS: () => new Element(), querySelector: () => null,
+      createElementNS: () => new Element(), querySelector: () => null, addEventListener: () => {},
       documentElement: { dataset: {} }, body: { classList: new Classes() } },
     window: { isSecureContext: false, addEventListener: () => {}, prompt: () => null },
     location: { protocol: 'http:' }, localStorage: { getItem: () => null, setItem: () => {} },

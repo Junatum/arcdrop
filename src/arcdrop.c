@@ -357,6 +357,16 @@ static void handle(const char *action, J *req) {
     if (!strcmp(action, "register")) create_session(req);
     J *me = authenticate(req);
     const char *my_id = sfield(me, "id");
+    if (!strcmp(action, "profile")) {
+        const char *name = sfield(req, "name"), *device_type = sfield(req, "deviceType");
+        if (!name || !*name || strlen(name) > 48 || !valid_device_type(device_type)) {
+            json_object_put(me); error_reply(400, "invalid device profile");
+        }
+        addstr(me, "name", name);
+        addstr(me, "deviceType", device_type);
+        if (!store_peer(me)) { json_object_put(me); error_reply(503, "state unavailable"); }
+        json_object_put(me); respond(200, json_object_new_object());
+    }
     if (!strcmp(action, "heartbeat")) {
         json_object_put(me); respond(200, json_object_new_object());
     }

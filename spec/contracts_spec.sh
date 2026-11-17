@@ -24,6 +24,14 @@ Describe 'ArcDrop ShellSpec 계약 테스트'
     The error should be blank
   End
 
+  It '기기 목록 안정화, 모바일 세션 복구, 프로필 편집과 저장소 제한을 검증한다'
+    When run command node --test --test-reporter=tap "$SHELLSPEC_PROJECT_ROOT/tests/test_discovery.mjs"
+    The status should be success
+    The output should include '# pass '
+    The output should include '# fail 0'
+    The error should be blank
+  End
+
   It '프론트엔드 JavaScript 문법을 확인한다'
     When run command sh "$SHELLSPEC_PROJECT_ROOT/tests/test-js-syntax.sh"
     The status should be success

@@ -50,7 +50,7 @@
         <div class="radar" aria-hidden="true"><div class="sonar-wave wave-1"></div><div class="sonar-wave wave-2"></div><div class="sonar-wave wave-3"></div><div class="sonar-wave wave-4"></div><div class="sonar-wave wave-5"></div></div>
         <div class="self-node">
           <div class="self-orb"><svg class="icon" aria-hidden="true"><use href="#icon-laptop"/></svg></div>
-          <div class="self-identity"><span id="my-name">연결 중…</span><button id="rename" class="rename-button" type="button" aria-label="내 기기 이름 변경" title="이름 변경"><svg class="icon"><use href="#icon-edit"/></svg></button></div>
+          <div class="self-identity"><span id="my-name">연결 중…</span><button id="rename" class="rename-button" type="button" aria-label="내 기기 설정" title="기기 이름·아이콘 설정"><svg class="icon"><use href="#icon-edit"/></svg></button></div>
           <span class="self-subtitle">내 기기</span>
         </div>
         <div id="devices" class="peers" aria-label="파일을 보낼 주변 기기"></div>
@@ -70,6 +70,14 @@
   </section>
   <section id="download" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="download-heading">
     <div class="dialog-panel"><div class="dialog-symbol complete"><svg class="icon"><use href="#icon-check"/></svg></div><span class="dialog-eyebrow">전송 완료</span><h2 id="download-heading">파일을 받았습니다</h2><p id="download-title" class="dialog-description"></p><a id="download-link" class="button primary wide" href="#" download>파일 저장</a><button id="done" class="secondary wide" type="button">닫기</button><p class="dialog-footnote">받은 파일은 이 브라우저에만 있습니다. 다른 곳에 저장하려면 파일 저장을 누르세요.</p></div>
+  </section>
+  <section id="device-dialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="device-title">
+    <div class="dialog-panel"><div class="dialog-symbol"><svg class="icon"><use href="#icon-desktop"/></svg></div><h2 id="device-title">내 기기 설정</h2>
+      <label class="device-label" for="device-name">기기 이름</label><input id="device-name" class="device-field" type="text" maxlength="30" autocomplete="off" spellcheck="false">
+      <label class="device-label" for="device-type">기기 아이콘</label><select id="device-type" class="device-field"><option value="laptop">노트북</option><option value="desktop">데스크톱</option><option value="tablet">태블릿</option><option value="phone">스마트폰</option></select>
+      <p class="dialog-footnote">이름과 아이콘은 이 브라우저의 표시용 설정입니다.</p>
+      <div class="dialog-actions"><button id="device-save" class="primary" type="button">저장</button><button id="device-cancel" class="secondary" type="button">취소</button></div>
+    </div>
   </section>
   <section id="help-dialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
     <div class="dialog-panel"><div class="dialog-symbol"><svg class="icon"><use href="#icon-info"/></svg></div><h2 id="help-title">ArcDrop 사용 방법</h2><p class="dialog-description">같은 신뢰된 LAN에서 다른 기기의 ArcDrop을 엽니다. 주변 기기를 누른 후 파일을 선택하고, 상대방이 수락하면 직접 전송합니다.</p><p class="dialog-description">파일은 공유기를 경유하거나 공유기에 저장되지 않습니다. 최대 64 MiB 파일 1개를 전송할 수 있으며, 브라우저에서 신뢰하는 HTTPS 연결이 필요합니다.</p><button id="help-close" class="primary wide" type="button">확인</button></div>

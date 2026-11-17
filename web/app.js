@@ -8,7 +8,9 @@ const ICE_GATHER_TIMEOUT_MS = 10000;
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const sizeText = (n) => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MiB` : `${(n / 1024).toFixed(1)} KiB`;
-const state = { session: null, peers: [], active: null, incoming: null, selectedPeer: null, blobUrl: null, running: true };
+const state = { session: null, peers: [], active: null, incoming: null, selectedPeer: null, blobUrl: null, running: false, loopId: 0, peerSlots: new Map(), peerNodes: new Map() };
+let connectPromise = null;
+let refreshSequence = 0;
 let toastTimer = null;
 
 function setConnectionStatus(status, label) {
@@ -69,6 +71,37 @@ function detectDevice() {
   if (/Linux/i.test(ua) || /Linux/i.test(platform)) return { name: 'Linux PC', deviceType: 'desktop' };
   return { name: '내 기기', deviceType: 'desktop' };
 }
+// Session tokens are tab-scoped; device preferences are optional and untrusted.
+function browserStorage(kind) { try { return globalThis[kind] || null; } catch { return null; } }
+function storageRead(store, key) { try { return store?.getItem(key) || null; } catch { return null; } }
+function storageWrite(store, key, value) { try { if (value === null) store?.removeItem(key); else store?.setItem(key, value); } catch { /* private mode */ } }
+function savedProfile() {
+  const automatic = detectDevice();
+  const name = storageRead(browserStorage('localStorage'), 'arcdrop-name') || storageRead(browserStorage('sessionStorage'), 'arcdrop-name');
+  const kind = storageRead(browserStorage('localStorage'), 'arcdrop-device-type');
+  return { name: validName(name) ? name : automatic.name,
+    deviceType: DEVICE_TYPES.includes(kind) ? kind : automatic.deviceType };
+}
+function validName(name) {
+  return typeof name === 'string' && !!name.trim() && name.length <= 30 &&
+    new TextEncoder().encode(name).byteLength <= 48;
+}
+function displayProfile(profile) {
+  $('my-name').textContent = profile.name;
+  const use = document.querySelector('.self-orb use');
+  if (use) use.setAttribute('href', `#icon-${profile.deviceType}`);
+}
+function storedSession() {
+  try {
+    const parsed = JSON.parse(storageRead(browserStorage('sessionStorage'), 'arcdrop-session') || 'null');
+    if (/^[0-9a-f]{24}$/.test(parsed?.id) && /^[0-9a-f]{48}$/.test(parsed?.token)) return parsed;
+  } catch { /* invalid or disabled session storage */ }
+  return null;
+}
+function persistSession(session) {
+  storageWrite(browserStorage('sessionStorage'), 'arcdrop-session', session ? JSON.stringify(session) : null);
+}
+function invalidSession(err) { return /invalid or expired session|invalid session/i.test(err?.message || ''); }
 function choosePeerFile(peer) {
   if (state.active || state.incoming) return;
   state.selectedPeer = peer;
@@ -133,39 +166,85 @@ async function cancelTransfer(reason = '전송이 취소되었습니다.', notif
     try { await signal(peer, 'bye', {}); } catch { /* peer already disconnected */ }
   }
 }
+// The server's directory iteration order is unstable. Preserve known order,
+// allocate fixed visual slots, and reuse existing DOM nodes during polling.
+function updatePeers(peers) {
+  const incoming = new Map();
+  for (const peer of peers) {
+    if (typeof peer?.id === 'string' && typeof peer.name === 'string' && peer.id !== state.session?.id)
+      incoming.set(peer.id, peer);
+  }
+  const previous = state.peers.filter((peer) => incoming.has(peer.id)).map((peer) => incoming.get(peer.id));
+  const oldIds = new Set(previous.map((peer) => peer.id));
+  const arrivals = [...incoming.values()].filter((peer) => !oldIds.has(peer.id))
+    .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  const slots = state.peerSlots;
+  for (const id of slots.keys()) if (!incoming.has(id)) slots.delete(id);
+  for (const peer of arrivals) {
+    const used = new Set(slots.values());
+    for (let slot = 0; slot < 6; slot++) {
+      if (!used.has(slot)) { slots.set(peer.id, slot); break; }
+    }
+  }
+  state.peers = [...previous, ...arrivals];
+  renderPeers();
+}
+function peerButton(peer) {
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'peer';
+  const orb = document.createElement('span'); orb.className = 'peer-orb';
+  const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  icon.setAttribute('class', 'icon'); icon.setAttribute('aria-hidden', 'true');
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  icon.append(use); orb.append(icon);
+  const title = document.createElement('span'); title.className = 'peer-name';
+  const subtitle = document.createElement('span'); subtitle.className = 'peer-action'; subtitle.textContent = '파일 보내기';
+  btn.append(orb, title, subtitle);
+  const entry = { btn, use, title, peer };
+  btn.addEventListener('click', () => choosePeerFile(entry.peer));
+  btn.addEventListener('dragover', (event) => {
+    if (btn.disabled || !event.dataTransfer?.types.includes('Files')) return;
+    event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; btn.classList.add('drag-over');
+  });
+  btn.addEventListener('dragleave', () => btn.classList.remove('drag-over'));
+  btn.addEventListener('drop', (event) => handlePeerDrop(event, entry.peer));
+  return entry;
+}
 function renderPeers() {
   const root = $('devices');
-  root.replaceChildren();
   const count = state.peers.length;
   $('peer-count').textContent = count ? `주변 기기 ${count}대` : '주변 기기를 찾는 중';
   $('discovery').dataset.density = count > 6 ? 'many' : 'radial';
   $('discovery').dataset.empty = count ? 'false' : 'true';
   $('discovery').dataset.rows = String(Math.min(Math.ceil(count / 2), 6));
-  for (const [index, peer] of state.peers.entries()) {
-    const btn = document.createElement('button');
-    btn.type = 'button'; btn.className = 'peer';
-    btn.disabled = !!(state.active || state.incoming);
-    btn.setAttribute('aria-label', `${peer.name}에 파일 보내기`);
-    if (count <= 6) btn.classList.add(`peer-pos-${count}-${index}`);
-    const orb = document.createElement('span'); orb.className = 'peer-orb';
-    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    icon.setAttribute('class', 'icon'); icon.setAttribute('aria-hidden', 'true');
-    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-    use.setAttribute('href', `#icon-${deviceIcon(peer)}`);
-    icon.append(use); orb.append(icon);
-    const title = document.createElement('span'); title.className = 'peer-name'; title.textContent = peer.name;
-    const subtitle = document.createElement('span'); subtitle.className = 'peer-action'; subtitle.textContent = '파일 보내기';
-    btn.append(orb, title, subtitle);
-    btn.addEventListener('click', () => choosePeerFile(peer));
-    btn.addEventListener('dragover', (event) => {
-      if (btn.disabled || !event.dataTransfer?.types.includes('Files')) return;
-      event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; btn.classList.add('drag-over');
-    });
-    btn.addEventListener('dragleave', () => btn.classList.remove('drag-over'));
-    btn.addEventListener('drop', (event) => handlePeerDrop(event, peer));
-    root.append(btn);
+  const next = new Set(state.peers.map((peer) => peer.id));
+  for (const peer of state.peers) {
+    if (!state.peerSlots.has(peer.id)) {
+      const used = new Set(state.peerSlots.values());
+      for (let slot = 0; slot < 6; slot++) {
+        if (!used.has(slot)) { state.peerSlots.set(peer.id, slot); break; }
+      }
+    }
   }
+  for (const id of state.peerNodes.keys()) if (!next.has(id)) state.peerNodes.delete(id);
+  const nodes = [];
+  for (const peer of state.peers) {
+    let entry = state.peerNodes.get(peer.id);
+    if (!entry) { entry = peerButton(peer); state.peerNodes.set(peer.id, entry); }
+    entry.peer = peer;
+    entry.title.textContent = peer.name;
+    entry.use.setAttribute('href', `#icon-${deviceIcon(peer)}`);
+    entry.btn.setAttribute('aria-label', `${peer.name}에 파일 보내기`);
+    entry.btn.disabled = !!(state.active || state.incoming);
+    const slot = state.peerSlots.get(peer.id);
+    for (let i = 0; i < 6; i++) entry.btn.classList.toggle(`peer-slot-${i}`, count <= 6 && slot === i);
+    nodes.push(entry.btn);
+  }
+  // Preserve focus/drag state: reattach only when membership/order changes.
+  if (root.children.length !== nodes.length || nodes.some((node, i) => root.children[i] !== node))
+    root.replaceChildren(...nodes);
 }
+
 function armTimeout(active) {
   if (active.timeout) clearTimeout(active.timeout);
   active.timeout = setTimeout(() => {
@@ -382,27 +461,75 @@ function receiveMessage(t, data) {
   t.received.push(data); t.bytes += data.byteLength; armTimeout(t);
   progress('파일 수신 중', t.bytes, t.offer.size, `${t.peerName}에서 직접 전송 중`);
 }
-async function loop() {
+async function refreshPeers() {
+  const sequence = ++refreshSequence;
+  const session = state.session;
+  const response = await api('peers');
+  if (state.session === session && sequence === refreshSequence) updatePeers(response.peers || []);
+}
+async function ensureSession() {
+  if (connectPromise) return connectPromise;
+  connectPromise = (async () => {
+    const profile = savedProfile();
+    displayProfile(profile);
+    if (!state.session) state.session = storedSession();
+    if (state.session) {
+      try { await api('heartbeat'); }
+      catch (err) {
+        if (!invalidSession(err)) throw err;
+        state.session = null;
+        persistSession(null);
+      }
+    }
+    if (!state.session) {
+      state.session = await api('register', profile);
+      persistSession(state.session);
+    }
+    setConnectionStatus('online', '로컬 연결');
+    notice('');
+    await refreshPeers();
+    if (!state.running) {
+      state.running = true;
+      const loopId = ++state.loopId;
+      void loop(loopId);
+    }
+  })().finally(() => { connectPromise = null; });
+  return connectPromise;
+}
+async function loop(loopId) {
   let turn = 0;
-  while (state.running && state.session) {
+  while (state.running && state.session && state.loopId === loopId) {
+    const session = state.session;
     try {
       const payload = await api('poll');
+      if (!state.running || state.loopId !== loopId || session !== state.session) return;
       for (const message of payload.messages || []) await handleSignal(message);
       setConnectionStatus('online', '로컬 연결');
-      if (turn++ % 3 === 0) {
-        const peers = await api('peers');
-        state.peers = peers.peers || [];
-        renderPeers();
-      }
+      if (turn++ % 3 === 0) await refreshPeers();
     } catch (err) {
+      if (state.loopId !== loopId) return;
       if (state.active && !state.active.finished) await cancelTransfer(`연결 오류: ${err.message}`, false);
-      if (/session|expired|LAN only|HTTPS/i.test(err.message)) {
-        state.running = false; setConnectionStatus('error', '연결 끊김'); notice(`연결이 끊어졌습니다. 페이지를 새로고침해주세요: ${err.message}`, true); break;
+      if (invalidSession(err)) {
+        state.running = false;
+        state.session = null;
+        persistSession(null);
+        setConnectionStatus('error', '세션 복구 중');
+        if (document.visibilityState !== 'hidden' && navigator.onLine !== false)
+          void ensureSession().catch((error) => {
+            setConnectionStatus('error', '재연결 대기'); notice(`연결 복구 실패: ${error.message}`, true);
+          });
+        return;
       }
-      setConnectionStatus('error', '재연결 중'); notice(`연결을 다시 시도합니다: ${err.message}`, true);
+      setConnectionStatus('error', '재연결 중');
+      notice(`연결을 다시 시도합니다: ${err.message}`, true);
     }
     await sleep(1100);
   }
+}
+async function resumeDiscovery() {
+  if (document.visibilityState === 'hidden' || navigator.onLine === false) return;
+  try { await ensureSession(); }
+  catch (err) { setConnectionStatus('error', '재연결 대기'); notice(`연결 복구 실패: ${err.message}`, true); }
 }
 async function start() {
   if (location.protocol !== 'https:' || !window.isSecureContext || !('RTCPeerConnection' in window)) {
@@ -411,17 +538,7 @@ async function start() {
     notice('신뢰할 수 있는 HTTPS 연결과 WebRTC 지원 브라우저가 필요합니다. 공유기의 HTTPS 인증서 상태를 확인해주세요.', true);
     return;
   }
-  const device = detectDevice();
-  const name = sessionStorage.getItem('arcdrop-name') || device.name;
-  const selfIcon = document.querySelector('.self-orb use');
-  if (selfIcon) selfIcon.setAttribute('href', `#icon-${device.deviceType}`);
-  try {
-    state.session = await api('register', { name, deviceType: device.deviceType });
-    $('my-name').textContent = name;
-    setConnectionStatus('online', '로컬 연결');
-    notice('');
-    void loop();
-  } catch (err) { setConnectionStatus('error', '연결 실패'); notice(`연결 실패: ${err.message}`, true); }
+  await resumeDiscovery();
 }
 $('file-input').addEventListener('change', (event) => {
   const file = event.target.files?.[0];
@@ -438,22 +555,47 @@ $('help-close').addEventListener('click', () => show('help-dialog', false));
 $('notice-dismiss').addEventListener('click', () => show('notice', false));
 initTheme();
 $('rename').addEventListener('click', () => {
-  const previous = $('my-name').textContent;
-  const value = window.prompt('표시할 기기 이름 (최대 30자)', previous);
-  if (value === null) return;
-  const name = value.trim().slice(0, 30);
-  if (!name || new TextEncoder().encode(name).byteLength > 48) { notice('이름은 UTF-8 기준 48바이트 이하로 입력해주세요.', true); return; }
-  sessionStorage.setItem('arcdrop-name', name);
-  location.reload();
+  const profile = savedProfile();
+  $('device-name').value = profile.name;
+  $('device-type').value = profile.deviceType;
+  show('device-dialog', true);
+  $('device-name').focus();
 });
+$('device-cancel').addEventListener('click', () => show('device-dialog', false));
+$('device-save').addEventListener('click', async () => {
+  const name = $('device-name').value.trim();
+  const deviceType = $('device-type').value;
+  if (!validName(name) || !DEVICE_TYPES.includes(deviceType)) {
+    notice('기기 이름은 30자, UTF-8 48바이트 이하여야 합니다.', true); return;
+  }
+  const save = $('device-save');
+  if (save.disabled) return;
+  save.disabled = true;
+  try {
+    if (!state.session) throw new Error('기기 연결을 먼저 확인해주세요.');
+    await api('profile', {name, deviceType});
+    storageWrite(browserStorage('localStorage'), 'arcdrop-name', name);
+    storageWrite(browserStorage('localStorage'), 'arcdrop-device-type', deviceType);
+    storageWrite(browserStorage('sessionStorage'), 'arcdrop-name', name);
+    displayProfile({name, deviceType});
+    show('device-dialog', false);
+  } catch (err) { show('device-dialog', false); notice(`기기 설정 저장 실패: ${err.message}`, true); }
+  finally { save.disabled = false; }
+});
+// pagehide also fires on reload and browser back-forward cache. Keep the
+// tab-scoped token for 45 seconds rather than sending a racing leave beacon.
 window.addEventListener('pagehide', () => {
   state.running = false;
+  ++state.loopId;
   if (toastTimer) clearTimeout(toastTimer);
-  if (state.session) {
-    const data = JSON.stringify(state.session);
-    navigator.sendBeacon?.(`${API}?action=leave`, new Blob([data], { type: 'application/json' }));
-  }
   if (state.active) resetTransfer();
   cleanDownload();
 });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') void resumeDiscovery();
+});
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) void resumeDiscovery();
+});
+window.addEventListener('online', () => void resumeDiscovery());
 void start();

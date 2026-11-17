@@ -6,7 +6,7 @@ const SAMPLE_PEERS = [
   { id: 'preview-b', name: 'Windows PC', icon: 'desktop' },
   { id: 'preview-c', name: 'iPad Air', icon: 'tablet' },
 ];
-const dialogIds = ['incoming', 'transfer', 'download', 'help-dialog'];
+const dialogIds = ['incoming', 'transfer', 'download', 'help-dialog', 'device-dialog'];
 let selectedPeer = null;
 function show(id, value) {
   $(id).classList.toggle('hidden', !value);
@@ -83,8 +83,19 @@ function initTheme() {
 }
 $('my-name').textContent = 'MacBook Pro';
 $('rename').addEventListener('click', () => {
-  const proposed = window.prompt('데모 기기 이름', $('my-name').textContent);
-  if (proposed && proposed.trim()) $('my-name').textContent = proposed.trim().slice(0, 30);
+  $('device-name').value = $('my-name').textContent;
+  $('device-type').value = document.querySelector('.self-orb use')?.getAttribute('href')?.slice(6) || 'laptop';
+  show('device-dialog', true);
+  $('device-name').focus();
+});
+$('device-cancel').addEventListener('click', () => show('device-dialog', false));
+$('device-save').addEventListener('click', () => {
+  const name = $('device-name').value.trim();
+  const kind = $('device-type').value;
+  if (!name || new TextEncoder().encode(name).byteLength > 48 || !['phone','tablet','laptop','desktop'].includes(kind)) return;
+  $('my-name').textContent = name;
+  document.querySelector('.self-orb use')?.setAttribute('href', `#icon-${kind}`);
+  show('device-dialog', false);
 });
 $('file-input').addEventListener('change', (event) => {
   const file = event.target.files?.[0];

@@ -2,6 +2,21 @@
 
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
+## 0.1.0-r10 (2026-11-17)
+
+### Fixed
+- Recover expired discovery sessions when returning to ArcDrop from an iPadOS background tab, without requiring a reload.
+- Reuse valid per-tab sessions after refresh to avoid duplicate peers and unnecessary per-IP session-limit errors.
+- Handle restricted browser storage without preventing discovery from starting.
+
+### Improved
+- Keep discovered devices in stable radial slots and reuse their DOM elements while refreshing the peer list.
+- Allow users to edit their device name and icon independently, with local preferences and an authenticated server-side profile update.
+- Preserve LAN-only WebRTC, strict CSP, and zero external JavaScript dependencies; avoid UA fingerprinting for hardware model names.
+
+### Tests
+- Added tests for session revalidation, profile updates, stable peer positions, restricted storage, and browser lifecycle recovery.
+
 ## 0.1.0-r9 (2026-11-17)
 
 ### Fixed
