@@ -83,10 +83,12 @@ class ArcDropHostBuildFlagsTests(unittest.TestCase):
 
 class ArcDropDarwinCompatibilityTests(unittest.TestCase):
     def test_macOS에서_Darwin_확장을_헤더보다_먼저_활성화한다(self):
-        source = (ROOT / 'src/arcdrop.c').read_text(encoding='utf-8')
-        self.assertIn('#include <sys/file.h>', source)
-        self.assertIn('O_CLOEXEC | O_NOFOLLOW', source)
-        feature_prefix = source.split('#include <arpa/inet.h>', 1)[0]
+        header = (ROOT / 'src/arcdrop.h').read_text(encoding='utf-8')
+        sources = '\n'.join(p.read_text(encoding='utf-8') for p in (ROOT / 'src').glob('*.c'))
+        self.assertIn('#include <sys/file.h>', sources)
+        self.assertIn('O_CLOEXEC | O_NOFOLLOW', sources)
+        feature_prefix = header.split('#include <arpa/inet.h>', 1)[0]
+        feature_prefix = feature_prefix[feature_prefix.index('#if defined(__APPLE__)'):]
         self.assertIn('#define _POSIX_C_SOURCE 200809L', feature_prefix)
         # Preprocess the real source's feature-macro block, using both host
         # platform simulations without depending on a macOS SDK on CI Linux.
@@ -114,7 +116,7 @@ class ArcDropCGITests(unittest.TestCase):
     def setUpClass(cls):
         subprocess.run([
             'cc', '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
-            '-DARCDROP_TEST', str(ROOT / 'src/arcdrop.c'), '-o', str(BIN),
+            '-DARCDROP_TEST', *[str(p) for p in sorted((ROOT / 'src').glob('*.c'))], '-o', str(BIN),
             *json_c_build_flags(),
         ], check=True)
 

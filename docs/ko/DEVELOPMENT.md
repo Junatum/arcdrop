@@ -2,7 +2,7 @@
 
 **언어:** [English](../DEVELOPMENT.md) | [한국어](DEVELOPMENT.md)
 
-> 기준 소스: ArcDrop `0.1.0-r13`. 2026-11-17.
+> 기준 소스: ArcDrop `0.1.0-r14`. 2026-11-17.
 >
 > 개발·테스트·디자인 미리보기를 위한 문서입니다. **정적 UI 미리보기와 실제 WebRTC 전송 테스트는 별개**입니다.
 
@@ -26,7 +26,9 @@ arcdrop/
 ├── .github/workflows/ci.yml   # 자동 계약 테스트
 ├── Makefile                   # OpenWrt 패키지 정의 및 설치
 ├── root/etc/arcdrop.conf      # 설치 후 /etc/arcdrop.conf
-├── src/arcdrop.c              # HTTPS/LAN 제한, CGI 시그널링
+├── src/arcdrop.c              # CGI 요청 진입점 및 라우팅
+├── src/arcdrop.h              # 요청 컨텍스트 및 공통 인터페이스
+├── src/{http,lan,peer_store,session,signaling,json_helpers}.c # 기능별 C 모듈
 ├── web/
 │   ├── index.html             # 화면 마크업
 │   ├── style.css              # 다크/라이트·반응형 스타일

@@ -21,7 +21,7 @@ make package/arcdrop/compile V=s
 find bin/packages -name 'smartsafehub-app-arcdrop*.apk'
 ```
 
-The package preparation step runs `mkdir -p $(PKG_BUILD_DIR)` before copying `src/arcdrop.c` and `LICENSE`. To validate that step without an OpenWrt toolchain, run `sh tests/test-build-prepare.sh` from the ArcDrop repository root. The test uses a minimal GNU Make fixture, not a cross-compile. If your build previously failed at `.prepared_*` with `Is a directory` / `Error 126`, rebuild the package after updating the source:
+The package preparation step runs `mkdir -p $(PKG_BUILD_DIR)` before copying all `src/*.c` modules, `src/arcdrop.h`, and `LICENSE`. To validate that step without an OpenWrt toolchain, run `sh tests/test-build-prepare.sh` from the ArcDrop repository root. The test uses a minimal GNU Make fixture, not a cross-compile. If your build previously failed at `.prepared_*` with `Is a directory` / `Error 126`, rebuild the package after updating the source:
 
 ```sh
 make package/arcdrop/clean V=s

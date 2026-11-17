@@ -72,7 +72,7 @@ basicConstraints = CA:FALSE
 def build_test_cgi(directory):
     binary = directory / 'arcdrop'
     subprocess.run(['cc', '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
-                    '-DARCDROP_TEST', str(ROOT / 'src/arcdrop.c'), '-o', str(binary),
+                    '-DARCDROP_TEST', *[str(p) for p in sorted((ROOT / 'src').glob('*.c'))], '-o', str(binary),
                     *json_c_build_flags()], check=True)
     return binary
 

@@ -9,7 +9,7 @@ import sys
 
 root = Path(sys.argv[1])
 mk = (root / 'Makefile').read_text(encoding='utf-8')
-cgi = (root / 'src/arcdrop.c').read_text(encoding='utf-8')
+cgi = '\n'.join(p.read_text(encoding='utf-8') for p in (root / 'src').glob('*') if p.suffix in ('.c', '.h'))
 readme = (root / 'README.md').read_text(encoding='utf-8')
 
 

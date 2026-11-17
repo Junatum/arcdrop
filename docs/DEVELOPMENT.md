@@ -2,7 +2,7 @@
 
 **Languages:** [English](DEVELOPMENT.md) | [한국어](ko/DEVELOPMENT.md)
 
-This guide describes ArcDrop **0.1.0-r13** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
+This guide describes ArcDrop **0.1.0-r14** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
 
 ## 1. Overview
 
@@ -20,7 +20,9 @@ ArcDrop is a SmartSafeHub official app licensed under **GPL-3.0-or-later**, impl
 arcdrop/
 ├── Makefile                     # OpenWrt package and revision
 ├── root/etc/arcdrop.conf        # Installed as /etc/arcdrop.conf
-├── src/arcdrop.c                # HTTPS/LAN-limited native signaling CGI
+├── src/arcdrop.c                # CGI entry and routing
+├── src/arcdrop.h                # Per-request context / module contract
+├── src/{http,lan,peer_store,session,signaling,json_helpers}.c # Native modules
 ├── web/
 │   ├── index.html, app.js       # Real browser UI and WebRTC client
 │   ├── style.css, icon.svg      # CSS and shared infinity-flow icon

@@ -60,7 +60,14 @@ Describe 'ArcDrop ShellSpec 계약 테스트'
     The error should be blank
   End
 
-  It 'OpenWrt Build/Prepare가 빌드 디렉터리를 생성하고 소스와 라이선스를 복사한다'
+  It 'C 모듈 분리와 요청별 컨텍스트 및 OpenWrt 소스 목록을 검증한다'
+    When run command sh "$SHELLSPEC_PROJECT_ROOT/tests/test-c-modules.sh"
+    The status should be success
+    The output should start with 'PASS:'
+    The error should be blank
+  End
+
+  It 'OpenWrt Build/Prepare와 Compile이 전체 C 모듈 및 라이선스를 처리한다'
     When run command sh "$SHELLSPEC_PROJECT_ROOT/tests/test-build-prepare.sh"
     The status should be success
     The output should start with 'PASS:'

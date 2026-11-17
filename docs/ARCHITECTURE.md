@@ -21,7 +21,13 @@ The router serves the HTML/CSS/JS/SVG and exchanges **signaling metadata only**;
 | Component | Source | Purpose |
 |---|---|---|
 | HTTPS host | Existing OpenWrt `uhttpd` | Serves static assets and runs CGI |
-| Signaling CGI | `src/arcdrop.c` | Validates HTTPS, same-origin and trusted LAN; manages peer sessions, approval and ICE/SDP |
+| Signaling CGI entry | `src/arcdrop.c` | CGI request validation and action routing |
+| CGI HTTP and JSON | `src/http.c`, `src/json_helpers.c` | Response handling, bounded helpers, identifiers |
+| LAN access | `src/lan.c` | Same-origin HTTPS and trusted LAN checks |
+| Peer storage | `src/peer_store.c` | Volatile JSON metadata, locking contract and expiry |
+| Sessions and discovery | `src/session.c` | Registration, session checks and peer presence |
+| WebRTC signaling | `src/signaling.c` | Consent validation, SDP/ICE metadata and bounded queue |
+| Shared CGI contract | `src/arcdrop.h` | Explicit request context and module interfaces |
 | Browser client | `web/app.js` | Peer discovery and encrypted WebRTC data-channel file transfer |
 | Browser UI | `web/index.html`, `web/style.css`, `web/icon.svg` | Responsive device-centric transfer UI |
 | Local design demo | `web/demo.html`, `web/demo.js` | Isolated preview only; not installed to routers |
@@ -53,3 +59,13 @@ The CGI continues to authenticate each short-lived session, then records optiona
 ## Signal failure handling (0.1.0-r12)
 
 Incoming invitations expire after 30 seconds if not accepted/declined. The browser processes each queued poll message independently; a malformed SDP/failed exchange cancels the affected transfer but does not discard later messages in that poll batch. This is an additional resilience measure, **not a guarantee of successful WebRTC connectivity**. Full validation matrix: [VALIDATION.md](VALIDATION.md).
+
+## Native CGI module boundaries (0.1.0-r14)
+
+`src/arcdrop.c` is the request entry point and router; the other `src/*.c` files
+are linked into the same native CGI executable. No new daemon, port, persistent
+storage or external runtime is introduced. `ArcContext` is allocated once per
+request and passed explicitly; its state-directory path, client IPv4 address,
+file-lock descriptor and clock value are not global variables. HTTP replies keep
+the existing CGI exit semantics and release the lock. No file payload reaches
+these interfaces. Phase 1 changes organization only, not public JSON contracts.

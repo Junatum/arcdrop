@@ -5,7 +5,7 @@
 **ArcDrop — by SmartSafeHub**. Lightweight, open-source, LAN-only peer-to-peer file sharing for OpenWrt.
 
 - License: **GPL-3.0-or-later**; independent implementation, no PairDrop code or assets reused.
-- Package: `smartsafehub-app-arcdrop` (`0.1.0-r13`).
+- Package: `smartsafehub-app-arcdrop` (`0.1.0-r14`).
 - Sender/receiver browsers transfer file bytes via encrypted **WebRTC RTCDataChannel**, with `iceServers: []` (no external STUN/TURN).
 - The router only serves a small local UI and passes bounded discovery/SDP/ICE metadata; **no file bytes are sent to or stored on the router**, cloud or local disk.
 - The signaling metadata (device name, IP, session token, SDP/ICE messages) temporarily resides in `/tmp/arcdrop` (tmpfs). Session metadata expires after 45 seconds of inactivity.
@@ -94,7 +94,7 @@ sh tests/test-openwrt-commands.sh
 
 ## Repository
 
-- `src/arcdrop.c`: bounded, same-origin, LAN-restricted native CGI signaling endpoint.
+- `src/arcdrop.c`, `src/arcdrop.h` and the other `src/*.c` modules: single bounded, same-origin, LAN-restricted native CGI. See [architecture](docs/ARCHITECTURE.md) for module responsibilities.
 - `web/`: static **source** HTML/CSS/vanilla JS (no bundler output). The central-device discovery UI displays outward animated signal waves, surrounding recipient devices, and modal transfer states.
 - `web/icon.svg`: original ArcDrop continuous infinity-flow mark, shared by the header, transfer dialog, demo, and browser favicon. Included in the OpenWrt package; SVG source only, no external assets.
 - `web/demo.html`, `web/demo.js`: local design preview **only**, excluded from the OpenWrt package and incapable of real transfer.

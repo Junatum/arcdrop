@@ -27,7 +27,7 @@ for i, _ in versions[1:]:
         if lines[prev]:
             raise SystemExit('FAIL: 릴리스 사이에 공백 문자만 있는 줄이 있습니다')
         prev -= 1
-    if i - prev - 1 != 1:
-        raise SystemExit(f'FAIL: {i + 1}행 릴리스 전에 빈 줄 하나가 필요합니다')
-print(f'PASS: ArcDrop CHANGELOG {len(versions)}개 릴리스 버전과 빈 줄 하나씩이 있습니다')
+    if i - prev - 1 != 2:
+        raise SystemExit(f'FAIL: {i + 1}행 릴리스 전에 빈 줄 두 개가 필요합니다')
+print(f'PASS: ArcDrop CHANGELOG {len(versions)}개 릴리스 버전과 빈 줄 두 개씩이 있습니다')
 PYTEST

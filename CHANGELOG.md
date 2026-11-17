@@ -2,6 +2,22 @@
 
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
+
+## 0.1.0-r14 (2026-11-17)
+
+### Improved
+- Split the native signaling CGI into focused modules for HTTP, LAN access, session storage, peer sessions, and WebRTC signaling.
+- Pass per-request state explicitly instead of sharing mutable process globals, without changing the LAN-only or file-content isolation rules.
+- Keep the existing single CGI executable and lightweight OpenWrt package requirements.
+
+### Compatibility
+- Preserve existing API actions, JSON response format, error messages, session lifetimes, and HTTP checks.
+
+### Tests
+- Compile every native module in host CGI and optional browser E2E tests; verify OpenWrt copies and links all sources.
+- Add module boundary, request-context and build regression checks to the required ShellSpec suite.
+
+
 ## 0.1.0-r13 (2026-11-17)
 
 ### Fixed
@@ -13,6 +29,7 @@ All notable changes to ArcDrop are documented here. Releases follow the OpenWrt 
 
 ### Tests
 - Added UI regression checks for the radar center mask, theme-toggle polish, and dark/light wave styling.
+
 
 ## 0.1.0-r12 (2026-11-17)
 
@@ -28,6 +45,7 @@ All notable changes to ArcDrop are documented here. Releases follow the OpenWrt 
 ### Tests
 - Add Korean regression tests for invitation cleanup, signaling failures, browser binary selection, certificate generation and E2E isolation.
 - Keep the standalone E2E workflow optional; required ShellSpec contracts must remain offline and fast.
+
 
 ## 0.1.0-r11 (2026-11-17)
 
@@ -45,6 +63,7 @@ All notable changes to ArcDrop are documented here. Releases follow the OpenWrt 
 - Added real CGI tests for presence state transitions, strict boolean validation, stale sessions, and legacy clients.
 - Added browser tests for adaptive polling, mobile wakeup, presence labels, and transient polling errors.
 
+
 ## 0.1.0-r10 (2026-11-17)
 
 ### Fixed
@@ -60,6 +79,7 @@ All notable changes to ArcDrop are documented here. Releases follow the OpenWrt 
 ### Tests
 - Added tests for session revalidation, profile updates, stable peer positions, restricted storage, and browser lifecycle recovery.
 
+
 ## 0.1.0-r9 (2026-11-17)
 
 ### Fixed
@@ -72,6 +92,7 @@ All notable changes to ArcDrop are documented here. Releases follow the OpenWrt 
 
 ### Tests
 - Added Firefox/WebKit-style asynchronous ICE gathering and both signaling-direction regression tests, rejected-candidate isolation, and SDP size-bound checks.
+
 
 ## 0.1.0-r8 (2026-11-17)
 
@@ -87,6 +108,7 @@ All notable changes to ArcDrop are documented here. Releases follow the OpenWrt 
 ### Tests
 - Added CGI device-category validation tests, iPadOS detection cases, successful-transfer teardown regression tests, and strict CSP source contracts.
 
+
 ## 0.1.0-r7 (2026-11-17)
 
 ### Fixed
@@ -95,6 +117,7 @@ All notable changes to ArcDrop are documented here. Releases follow the OpenWrt 
 
 ### Tests
 - Added a real GNU Make preparation contract using stub OpenWrt includes, validating copied file contents and rejecting the broken `$(MKDIR)` recipe.
+
 
 ## 0.1.0-r6 (2026-11-17)
 
@@ -110,6 +133,7 @@ All notable changes to ArcDrop are documented here. Releases follow the OpenWrt 
 - Added ShellSpec documentation contracts covering language selection, internal links, package versions, and changelog formatting.
 - Corrected the ShellSpec changelog description to match the one-blank-line rule.
 
+
 ## 0.1.0-r5 (2026-11-17)
 
 ### Improved
@@ -120,6 +144,7 @@ All notable changes to ArcDrop are documented here. Releases follow the OpenWrt 
 ### Tests
 - Added checks for SVG self-containment, the continuous transfer path, consistent production/demo usage, and package installation.
 
+
 ## 0.1.0-r4 (2026-11-17)
 
 ### Improved
@@ -129,6 +154,7 @@ All notable changes to ArcDrop are documented here. Releases follow the OpenWrt 
 ### Tests
 - Strengthened tests for wave count, timing, size, and mobile presentation.
 - Checked icon consistency between the production UI and design preview.
+
 
 ## 0.1.0-r3 (2026-11-17)
 
@@ -147,6 +173,7 @@ All notable changes to ArcDrop are documented here. Releases follow the OpenWrt 
 - Added contracts for discovery animation, device selection, demo isolation, and mobile layout.
 - Confirmed design preview files are excluded from OpenWrt packages.
 
+
 ## 0.1.0-r2 (2026-11-17)
 
 ### Improved
@@ -157,6 +184,7 @@ All notable changes to ArcDrop are documented here. Releases follow the OpenWrt 
 - Integrated CGI, WebRTC, JavaScript syntax, OpenWrt compatibility, and package checks into ShellSpec.
 - Added safeguards against missing ShellSpec test registrations and skipped CI checks.
 - Added package-version and changelog-format verification.
+
 
 ## 0.1.0-r1 (2026-11-17)
 
