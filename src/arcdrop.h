@@ -21,6 +21,9 @@
 #define MAX_PEERS 24
 #define MAX_PER_IP 4
 #define MAX_QUEUE 32
+#define MAX_QUEUE_BYTES (64 * 1024)
+#define MAX_PEER_FILE (96 * 1024)
+#define CLEANUP_INTERVAL 15
 #define MAX_BODY 16384
 #define MAX_SIGNAL 14000
 #define MAX_REQUESTS 180
@@ -66,6 +69,12 @@ J *load_peer(ArcContext *app, const char *id);
 int store_peer(ArcContext *app, J *peer);
 int peer_alive(ArcContext *app, J *peer);
 void walk_peers(ArcContext *app, PeerVisitor visit, void *user_data);
+int prepare_state(ArcContext *app);
+int state_lock_ok(int fd);
+int recover_peer_transaction(ArcContext *app);
+int maybe_cleanup_peers(ArcContext *app);
+int begin_peer_transaction(ArcContext *app, J *first, J *second);
+int finish_peer_transaction(ArcContext *app, J *first, J *second);
 
 /* Session lifecycle and peer discovery. */
 J *authenticate(ArcContext *app, J *req);

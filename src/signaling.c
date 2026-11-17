@@ -115,14 +115,26 @@ _Noreturn void handle_signal(ArcContext *app, J *me, J *req) {
     if (!queue || !json_object_is_type(queue, json_type_array) || json_object_array_length(queue) >= MAX_QUEUE) {
         json_object_put(other); json_object_put(me); error_reply(app, 429, "recipient signal queue is full");
     }
-    if (!strcmp(kind, "invite")) pending_update(app, other, my_id, 1);
-    if (!strcmp(kind, "accept")) { pending_update(app, me, to, 0); allow(app, me, to); allow(app, other, my_id); }
-    if (!strcmp(kind, "decline")) pending_update(app, me, to, 0);
+    /* Limit JSON queue bytes, not just message count. Include the envelope
+       and JSON array delimiters, not only the user-supplied signal body. */
     J *msg = json_object_new_object();
     addstr(msg, "from", my_id); addstr(msg, "kind", kind);
     json_object_object_add(msg, "body", json_object_get(body));
+    size_t queued_bytes = strlen(json_object_to_json_string_ext(queue, JSON_C_TO_STRING_PLAIN));
+    size_t new_bytes = strlen(json_object_to_json_string_ext(msg, JSON_C_TO_STRING_PLAIN));
+    if (queued_bytes + new_bytes + (json_object_array_length(queue) ? 1 : 0) > MAX_QUEUE_BYTES) {
+        json_object_put(msg); json_object_put(other); json_object_put(me);
+        error_reply(app, 429, "recipient signal queue is full");
+    }
+    if (!begin_peer_transaction(app, other, me)) {
+        json_object_put(msg); json_object_put(other); json_object_put(me);
+        error_reply(app, 503, "state unavailable");
+    }
+    if (!strcmp(kind, "invite")) pending_update(app, other, my_id, 1);
+    if (!strcmp(kind, "accept")) { pending_update(app, me, to, 0); allow(app, me, to); allow(app, other, my_id); }
+    if (!strcmp(kind, "decline")) pending_update(app, me, to, 0);
     json_object_array_add(queue, msg);
-    if (!store_peer(app, other) || !store_peer(app, me)) {
+    if (!finish_peer_transaction(app, other, me)) {
         json_object_put(other); json_object_put(me); error_reply(app, 503, "state unavailable");
     }
     json_object_put(other); json_object_put(me); respond(app, 200, json_object_new_object());

@@ -371,13 +371,149 @@ class ArcDropCGITests(unittest.TestCase):
             self.assertIn('lock', result['error'])
             self.assertEqual(target.read_text(encoding='utf-8'), 'protected')
 
+    def test_상태_디렉터리와_잠금_파일의_권한을_확인한다(self):
+        os.chmod(self.tmp, 0o711)
+        status, data = self.call('register', {'name': 'A'})
+        self.assertEqual(status, 503)
+        self.assertIn('state directory', data['error'])
+        os.chmod(self.tmp, 0o700)
+        lock_path = Path(self.tmp) / '.lock'
+        lock_path.write_text('', encoding='utf-8')
+        os.chmod(lock_path, 0o644)
+        status, data = self.call('register', {'name': 'A'})
+        self.assertEqual(status, 503)
+        self.assertIn('lock', data['error'])
+
+    def test_세션_파일_심볼릭링크를_거부하고_외부_파일을_보호한다(self):
+        a = self.session('A')
+        path = Path(self.tmp) / f"{a['id']}.json"
+        with tempfile.TemporaryDirectory(prefix='arc-safe-') as outside:
+            target = Path(outside) / 'untouched.json'
+            target.write_text('keep me', encoding='utf-8')
+            path.unlink()
+            path.symlink_to(target)
+            status, data = self.call('heartbeat', a)
+            self.assertEqual(status, 403)
+            self.assertEqual(data['error'], 'invalid or expired session')
+            self.assertEqual(target.read_text(encoding='utf-8'), 'keep me')
+
+    def test_권한이_열려있거나_큰_세션파일을_거부한다(self):
+        a = self.session('A')
+        path = Path(self.tmp) / f"{a['id']}.json"
+        os.chmod(path, 0o644)
+        self.assertEqual(self.call('heartbeat', a)[0], 403)
+        os.chmod(path, 0o600)
+        path.write_text('{"data":"' + 'X' * (97 * 1024) + '"}', encoding='utf-8')
+        self.assertEqual(self.call('heartbeat', a)[0], 403)
+
+    def test_다른_기기_ID를_사칭하는_세션파일을_거부한다(self):
+        a = self.session('A')
+        path = Path(self.tmp) / f"{a['id']}.json"
+        data = json.loads(path.read_text(encoding='utf-8'))
+        data['id'] = 'b' * 24 if a['id'] != 'b' * 24 else 'a' * 24
+        path.write_text(json.dumps(data), encoding='utf-8')
+        self.assertEqual(self.call('heartbeat', a)[0], 403)
+
+    def test_시그널링_큐는_메시지_개수뿐_아니라_누적_바이트도_제한한다(self):
+        a, b = self.session('A'), self.session('B')
+        self.assertEqual(self.call('signal', {**a, 'to': b['id'], 'kind': 'invite',
+            'body': {'name': 'file', 'size': 1024}})[0], 200)
+        self.assertEqual(self.call('signal', {**b, 'to': a['id'], 'kind': 'accept',
+            'body': {}})[0], 200)
+        self.assertEqual(self.call('poll', b)[0], 200)
+        failed = False
+        for index in range(9):
+            sdp = 'v=0\r\n' + 'X' * 10200 + str(index)
+            status, data = self.call('signal', {**a, 'to': b['id'], 'kind': 'offer',
+                'body': {'sdp': {'type': 'offer', 'sdp': sdp}}})
+            if status == 429:
+                self.assertEqual(data['error'], 'recipient signal queue is full')
+                failed = True
+                break
+            self.assertEqual(status, 200)
+        self.assertTrue(failed, '많은 SDP의 총합이 큐 상한을 넘어야 합니다')
+        path = Path(self.tmp) / f"{b['id']}.json"
+        stored = json.loads(path.read_text(encoding='utf-8'))
+        encoded = json.dumps(stored['messages'], ensure_ascii=False, separators=(',', ':'))
+        self.assertLessEqual(len(encoded.encode('utf-8')), 64 * 1024)
+        self.assertLessEqual(len(stored['messages']), 32)
+
+    def test_세션_전체_정리는_일정_시간_후에만_수행된다(self):
+        a = self.session('A')
+        stale = Path(self.tmp) / ('a' * 24 + '.json')
+        stale.write_text(json.dumps({'id': 'a' * 24, 'last': self.time - 100}), encoding='utf-8')
+        self.assertEqual(self.call('heartbeat', a)[0], 200)
+        self.assertTrue(stale.exists())
+        self.time += 14
+        self.assertEqual(self.call('heartbeat', a)[0], 200)
+        self.assertTrue(stale.exists())
+        self.time += 1
+        self.assertEqual(self.call('heartbeat', a)[0], 200)
+        self.assertFalse(stale.exists())
+
+    def test_두_기기_저장_실패는_기존_상태로_되돌린다(self):
+        a, b = self.session('A'), self.session('B')
+        signal = {**a, 'to': b['id'], 'kind': 'invite', 'body': {'name': 'test', 'size': 1}}
+        status, result = self.call('signal', signal,
+            env={'ARCDROP_TEST_FAIL_AFTER_FIRST': '1'})
+        self.assertEqual(status, 503)
+        self.assertEqual(result['error'], 'state unavailable')
+        self.assertFalse((Path(self.tmp) / '.transaction').exists())
+        self.assertEqual(self.call('poll', b)[1]['messages'], [])
+        self.assertEqual(self.call('signal', {**b, 'to': a['id'],
+            'kind': 'accept', 'body': {}})[0], 403)
+        self.assertEqual(self.call('signal', signal)[0], 200)
+        self.assertEqual(len(self.call('poll', b)[1]['messages']), 1)
+
+    def test_두_기기_저장_도중_프로세스가_죽으면_다음_요청에서_복구한다(self):
+        a, b = self.session('A'), self.session('B')
+        signal = {**a, 'to': b['id'], 'kind': 'invite', 'body': {'name': 'test', 'size': 1}}
+        with self.assertRaises(AssertionError):
+            self.call('signal', signal, env={'ARCDROP_TEST_CRASH_AFTER_FIRST': '1'})
+        self.assertTrue((Path(self.tmp) / '.transaction').exists())
+        self.assertEqual(self.call('poll', b)[1]['messages'], [])
+        self.assertFalse((Path(self.tmp) / '.transaction').exists())
+        self.assertEqual(self.call('signal', {**b, 'to': a['id'],
+            'kind': 'accept', 'body': {}})[0], 403)
+        self.assertEqual(self.call('signal', signal)[0], 200)
+
+    def test_수신_승인_저장_도중_중단되어도_양측_권한이_복구된다(self):
+        a, b = self.session('A'), self.session('B')
+        self.assertEqual(self.call('signal', {**a, 'to': b['id'], 'kind': 'invite',
+            'body': {'name': 'test', 'size': 1}})[0], 200)
+        self.assertEqual(self.call('poll', b)[0], 200)
+        accept = {**b, 'to': a['id'], 'kind': 'accept', 'body': {}}
+        with self.assertRaises(AssertionError):
+            self.call('signal', accept, env={'ARCDROP_TEST_CRASH_AFTER_FIRST': '1'})
+        self.assertTrue((Path(self.tmp) / '.transaction').exists())
+        self.assertEqual(self.call('poll', a)[1]['messages'], [])
+        self.assertFalse((Path(self.tmp) / '.transaction').exists())
+        offer = {'sdp': {'type': 'offer', 'sdp': 'v=0\r\nhello-world'}}
+        status, result = self.call('signal', {**a, 'to': b['id'],
+            'kind': 'offer', 'body': offer})
+        self.assertEqual(status, 403)
+        self.assertIn('approved', result['error'])
+        self.assertEqual(self.call('signal', accept)[0], 200)
+        self.assertEqual(self.call('signal', {**a, 'to': b['id'],
+            'kind': 'offer', 'body': offer})[0], 200)
+
+    def test_손상된_저널은_거부하고_외부_파일을_변경하지_않는다(self):
+        with tempfile.TemporaryDirectory(prefix='arc-journal-') as outside:
+            target = Path(outside) / 'untouched'
+            target.write_text('protected', encoding='utf-8')
+            (Path(self.tmp) / '.transaction').symlink_to(target)
+            status, data = self.call('register', {'name': 'A'})
+            self.assertEqual(status, 503)
+            self.assertEqual(data['error'], 'state recovery unavailable')
+            self.assertEqual(target.read_text(encoding='utf-8'), 'protected')
+
     def test_다운로드_저장소는_생기지_않는다(self):
         a, b = self.session('A'), self.session('B')
         self.call('signal', {**a, 'to': b['id'], 'kind': 'invite',
             'body': {'name': 'sample.txt', 'size': 5}})
         all_files = list(Path(self.tmp).iterdir())
         self.assertEqual(sum(f.is_file() and f.name.endswith('.json') for f in all_files), 2)
-        self.assertTrue(all(f.name == '.lock' or f.name.endswith('.json') for f in all_files))
+        self.assertTrue(all(f.name in ('.lock', '.cleanup') or f.name.endswith('.json') for f in all_files))
 
 
 if __name__ == '__main__':

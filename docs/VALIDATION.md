@@ -43,7 +43,7 @@ ip -4 addr show br-lan
 ls -la /tmp/arcdrop
 ```
 
-Do not print files in `/tmp/arcdrop` to bug reports: they contain short-lived authorization tokens and ICE information. The directory should contain only metadata and a `.lock` file, not received file content. Check that `/www/arcdrop/demo.html` and `/www/arcdrop/demo.js` do not exist.
+Do not print files in `/tmp/arcdrop` to bug reports: they contain short-lived authorization tokens and ICE information. The directory should contain only peer metadata, `.lock` and `.cleanup`; `.transaction` may appear during a two-peer signaling update but should not remain after a successful request. No received file content belongs there. Check that `/www/arcdrop/demo.html` and `/www/arcdrop/demo.js` do not exist.
 
 ## Manual device and network matrix
 

@@ -41,7 +41,7 @@ require('handle_signal(app, me, req)' in entry and '"signal"' in entry,
 for name, required in {
     'http.c': ('Status: %d %s', 'flock(app->lock_fd, LOCK_UN)'),
     'lan.c': ('REMOTE_ADDR', 'HTTP_ORIGIN', 'getifaddrs'),
-    'peer_store.c': ('O_CREAT | O_EXCL', 'json_object_from_file', 'walk_peers'),
+    'peer_store.c': ('O_CREAT | O_EXCL', 'read_private_json', 'walk_peers', 'recover_peer_transaction', 'maybe_cleanup_peers'),
     'session.c': ('authenticate(', 'create_session(', 'list_peers('),
     'signaling.c': ('pending_has(', 'signal_body_ok(', 'handle_signal('),
     'json_helpers.c': ('/dev/urandom', 'is_hex(', 'json_object_new_string'),
@@ -55,5 +55,10 @@ require("glob('*.c')" in (root / 'tests/test_cgi.py').read_text() and
         'CGI와 선택형 브라우저 E2E는 모든 C 모듈을 컴파일해야 합니다')
 require(all('main(' not in (src / name).read_text() for name in files if name != 'arcdrop.c'),
         'CGI main 진입점은 하나여야 합니다')
+require('MAX_QUEUE_BYTES' in header and 'MAX_PEER_FILE' in header and 'CLEANUP_INTERVAL' in header,
+        '큐 용량, 파일 크기, 정리 간격의 방어 상한을 유지해야 합니다')
+require('begin_peer_transaction(app, other, me)' in (src / 'signaling.c').read_text() and
+        'finish_peer_transaction(app, other, me)' in (src / 'signaling.c').read_text(),
+        '시그널링 양쪽 상태는 복구 가능한 저장 절차를 사용해야 합니다')
 print('PASS: CGI 모듈별 책임, 요청 컨텍스트와 단일 OpenWrt 빌드 계약')
 PYTEST

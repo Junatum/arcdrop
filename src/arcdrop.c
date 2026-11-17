@@ -103,15 +103,16 @@ int main(void) {
 #else
     app->now_time = time(NULL);
 #endif
-    if (mkdir(app->state_dir, 0700) != 0 && errno != EEXIST) error_reply(app, 503, "state directory unavailable");
-    struct stat st;
-    if (lstat(app->state_dir, &st) != 0 || !S_ISDIR(st.st_mode) || (st.st_mode & 077) != 0)
-        error_reply(app, 503, "state directory not private");
+    if (mkdir(app->state_dir, 0700) != 0 && errno != EEXIST)
+        error_reply(app, 503, "state directory unavailable");
+    if (!prepare_state(app)) error_reply(app, 503, "state directory not private");
     char lock_path[320]; snprintf(lock_path, sizeof(lock_path), "%s/.lock", app->state_dir);
     app->lock_fd = open(lock_path, O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
-    if (app->lock_fd < 0 || flock(app->lock_fd, LOCK_EX) != 0) error_reply(app, 503, "state lock unavailable");
-    /* Clean up stale sessions, even when no users refresh the peers list. */
-    walk_peers(app, NULL, NULL);
+    if (app->lock_fd < 0 || !state_lock_ok(app->lock_fd) ||
+        flock(app->lock_fd, LOCK_EX) != 0) error_reply(app, 503, "state lock unavailable");
+    /* Recover an interrupted two-peer update before any authentication. */
+    if (!recover_peer_transaction(app)) error_reply(app, 503, "state recovery unavailable");
+    if (!maybe_cleanup_peers(app)) error_reply(app, 503, "state cleanup unavailable");
     handle(app, query + 7, req);
     json_object_put(req);
     error_reply(app, 404, "not found");

@@ -3,6 +3,23 @@
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
 
+## 0.1.0-r15 (2026-11-17)
+
+### Fixed
+- Reject unsafe or oversized session files and require private ownership for the state directory and lock.
+- Restore both peers' previous signaling state if a two-device update is interrupted or fails.
+
+### Improved
+- Limit queued signaling JSON to 64 KiB per device in addition to the existing message count limit.
+- Check expired session files periodically instead of scanning the entire state directory on every poll.
+
+### Compatibility
+- Keep the existing HTTPS/LAN checks, client API, 45-second session expiry and direct browser-to-browser file transfers.
+
+### Tests
+- Add session file, queue size, cleanup interval, and interrupted update recovery regression tests.
+
+
 ## 0.1.0-r14 (2026-11-17)
 
 ### Improved

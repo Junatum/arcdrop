@@ -69,3 +69,29 @@ request and passed explicitly; its state-directory path, client IPv4 address,
 file-lock descriptor and clock value are not global variables. HTTP replies keep
 the existing CGI exit semantics and release the lock. No file payload reaches
 these interfaces. Phase 1 changes organization only, not public JSON contracts.
+
+## Private signaling state and interruption recovery (0.1.0-r15)
+
+The CGI's `/tmp/arcdrop` directory must be owned by the CGI user and not
+accessible by other users. Its lock and peer files must be private, regular,
+single-link files owned by that user. Peer JSON is read through a no-follow
+file descriptor and rejected if larger than 96 KiB or if its internal ID does
+not match its filename. These checks do not make local processes running with
+the **same effective UID** mutually isolated.
+
+Each peer's signaling queue retains the 32-message limit and is additionally
+limited to **64 KiB of serialized JSON**. A 15-second `.cleanup` marker avoids
+scanning every peer file for every poll; discovery and registration still scan
+immediately, and authentication still enforces the existing 45-second expiry.
+
+For a two-peer signaling update, `.transaction` briefly holds **pre-update
+metadata snapshots**. All CGI requests acquire `.lock` and recover any
+interrupted transaction (by restoring both old snapshots) before authenticating.
+The journal is removed after both updates succeed. On a write failure, the CGI
+returns 503 and attempts the same rollback; if rollback fails, later requests
+continue recovery rather than using partially updated consent state. A process
+crash between two updates is covered, but this is **not a disk-power-loss
+transaction guarantee** (the directory lives in volatile `/tmp`).
+
+The `.cleanup` and occasional `.transaction` are metadata only, never file
+payload bytes. Neither introduces a new background service or browser API.
