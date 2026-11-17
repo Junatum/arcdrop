@@ -4,6 +4,10 @@
 
 **ArcDrop — by SmartSafeHub**는 OpenWrt 공유기에서 동작하는 경량 LAN 전용 P2P 파일 공유 앱입니다.
 
+[![Lint](https://github.com/Junatum/arcdrop/actions/workflows/ci.yml/badge.svg)](https://github.com/Junatum/arcdrop/actions/workflows/ci.yml)
+![OpenWrt](https://img.shields.io/badge/OpenWrt-Compatible-blue)
+![License](https://img.shields.io/github/license/Junatum/arcdrop?label=License)
+
 - **라이선스:** GPL-3.0-or-later. PairDrop의 코드 및 리소스를 사용하지 않은 독립 구현입니다.
 - **패키지:** `smartsafehub-app-arcdrop` (`0.1.0-r17`).
 - **전송:** 브라우저 간 암호화된 WebRTC `RTCDataChannel`. `iceServers: []`로 외부 STUN/TURN 서버를 사용하지 않습니다.

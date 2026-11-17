@@ -4,6 +4,10 @@
 
 **ArcDrop — by SmartSafeHub**. Lightweight, open-source, LAN-only peer-to-peer file sharing for OpenWrt.
 
+[![Lint](https://github.com/Junatum/arcdrop/actions/workflows/ci.yml/badge.svg)](https://github.com/Junatum/arcdrop/actions/workflows/ci.yml)
+![OpenWrt](https://img.shields.io/badge/OpenWrt-Compatible-blue)
+![License](https://img.shields.io/github/license/Junatum/arcdrop?label=License)
+
 - License: **GPL-3.0-or-later**; independent implementation, no PairDrop code or assets reused.
 - Package: `smartsafehub-app-arcdrop` (`0.1.0-r17`).
 - Sender/receiver browsers transfer file bytes via encrypted **WebRTC RTCDataChannel**, with `iceServers: []` (no external STUN/TURN).
