@@ -52,3 +52,7 @@ From two trusted LAN browsers open `https://<router-LAN-host>/arcdrop/`, select 
 Use the OpenWrt package manager to remove `smartsafehub-app-arcdrop`. The package manager manages `/www/arcdrop/`, `/www/cgi-bin/arcdrop`, and `/etc/arcdrop.conf`. Temporary discovery metadata under `/tmp/arcdrop` disappears on reboot; it is not file content.
 
 See [deployment security](DEPLOYMENT.md) before enabling the app outside a development network and [development](DEVELOPMENT.md) for local preview and tests.
+
+## Post-install test matrix
+
+Follow [VALIDATION.md](VALIDATION.md) for on-device HTTPS trust, both-direction file transfer, isolated-guest rejection and payload-storage verification.

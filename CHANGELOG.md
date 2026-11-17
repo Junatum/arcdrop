@@ -2,6 +2,21 @@
 
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
+## 0.1.0-r12 (2026-11-17)
+
+### Fixed
+- Automatically expire unanswered incoming file invitations after 30 seconds without leaving stale modal or busy state.
+- Isolate failed signaling messages so malformed or rejected SDP does not discard subsequent messages from the same poll.
+
+### Improved
+- Make the optional real-browser E2E harness portable across macOS and Linux, including Homebrew json-c discovery and LibreSSL-compatible temporary certificates.
+- Add forward/reverse WebRTC transfer, rejection and router-payload-isolation scenarios and a manually triggered cross-platform browser CI workflow.
+- Document supported-device validation, HTTPS trust, firmware compatibility and Apps publication as separate release gates.
+
+### Tests
+- Add Korean regression tests for invitation cleanup, signaling failures, browser binary selection, certificate generation and E2E isolation.
+- Keep the standalone E2E workflow optional; required ShellSpec contracts must remain offline and fast.
+
 ## 0.1.0-r11 (2026-11-17)
 
 ### Improved

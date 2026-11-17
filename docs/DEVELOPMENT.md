@@ -2,7 +2,7 @@
 
 **Languages:** [English](DEVELOPMENT.md) | [한국어](ko/DEVELOPMENT.md)
 
-This guide describes ArcDrop **0.1.0-r11** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
+This guide describes ArcDrop **0.1.0-r12** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
 
 ## 1. Overview
 
@@ -98,7 +98,7 @@ The explicit TAP reporter prevents differences between Node.js output styles (`#
 
 ## 6. Optional real-browser WebRTC E2E
 
-`e2e/browser_e2e.py` starts temporary HTTPS/CGI services and uses Playwright Chromium browser contexts to test actual WebRTC transfer. It is **not** part of required ShellSpec CI.
+`e2e/browser_e2e.py` starts temporary HTTPS/CGI services and uses two Playwright browser contexts to test WebRTC in both directions. It is **not** part of required ShellSpec CI.
 
 ```sh
 python3 -m pip install playwright
@@ -106,7 +106,7 @@ python3 -m playwright install chromium
 python3 e2e/browser_e2e.py
 ```
 
-**Current limitation:** The optional E2E script assumes Linux `/usr/bin/chromium` and uses a minimal `-ljson-c` compilation path. These assumptions are not yet portable to macOS/Homebrew. Do not count the command as passing on Mac until adjusted and re-tested. `ARCDROP_TEST_MODE` and its temporary certificates are for testing only; never weaken production checks to run E2E.
+**Current state:** The optional E2E runner auto-detects Chromium/Chrome/Edge on macOS or Linux, uses the same Homebrew/json-c flag discovery as the CGI tests, and generates portable short-lived OpenSSL certificates. After `python3 -m playwright install chromium`, run `python3 e2e/browser_e2e.py`; set `ARCDROP_E2E_BROWSER=webkit` (or `firefox`) to test another installed engine. The runner tests both file directions and rejection and is available through manual GitHub Actions. The current sandbox still blocks browser localhost navigation: passing the new runner compatibility contracts is not the same as running browser E2E or iPadOS hardware validation. See [release validation](VALIDATION.md). `ARCDROP_TEST_MODE` is strictly testing-only.
 
 ## 7. Build and install on OpenWrt
 
@@ -141,7 +141,7 @@ Public CA certificate issuance is **not** implemented. Accepting browser TLS war
 | Demo assets do not refresh | Force browser reload / disable cache in devtools |
 | `json-c` CGI test compile error | `brew install json-c pkgconf`, compiler and detected include/library paths |
 | Node.js test output format mismatch | Run Node with `--test --test-reporter=tap` |
-| macOS optional E2E fails | Hardcoded Linux Chromium path and json-c compilation flags |
+| macOS optional E2E fails | Install `brew install json-c pkgconf`, `python3 -m playwright install chromium`, or set `ARCDROP_E2E_BROWSER_PATH`; see [release validation](VALIDATION.md) |
 | Router static UI returns 404 | `/www/arcdrop/index.html` installed? |
 | CGI returns 404/403 | `/www/cgi-bin/arcdrop`, HTTPS, Origin, allowed IPv4 LAN? |
 | Peer visible but transfer fails | Client isolation, VLAN, ICE host candidates and browser support |

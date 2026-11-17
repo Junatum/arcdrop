@@ -5,6 +5,7 @@ const CHUNK = 16 * 1024;
 const API = '/cgi-bin/arcdrop';
 const rtcConfig = { iceServers: [] }; // No external STUN/TURN; LAN P2P only.
 const ICE_GATHER_TIMEOUT_MS = 10000;
+const INVITE_RESPONSE_TIMEOUT_MS = 30000;
 // Poll frequently during a transfer, but reduce idle/background CGI traffic.
 // The server expires sessions after 45 seconds, including when backgrounded.
 const POLL_ACTIVE_MS = 700;
@@ -163,6 +164,14 @@ async function api(action, extra = {}) {
   return payload;
 }
 async function signal(to, kind, body = {}) { return api('signal', { to, kind, body }); }
+function clearIncoming() {
+  const request = state.incoming;
+  if (request?.timeout) clearTimeout(request.timeout);
+  state.incoming = null;
+  show('incoming', false);
+  wakePoll();
+  return request;
+}
 function cleanDownload() {
   if (state.blobUrl) URL.revokeObjectURL(state.blobUrl);
   state.blobUrl = null;
@@ -176,9 +185,8 @@ function resetTransfer() {
     if (t.pc) t.pc.close();
   }
   state.active = null;
-  state.incoming = null;
+  clearIncoming();
   wakePoll();
-  show('incoming', false);
   show('transfer', false);
   renderPeers();
 }
@@ -297,7 +305,7 @@ async function beginInvite(peer, file) {
 async function acceptIncoming() {
   const request = state.incoming;
   if (!request || state.active) return;
-  state.incoming = null; show('incoming', false);
+  clearIncoming();
   const t = { peerId: request.from, peerName: request.sender, role: 'receiver',
     offer: request.body, pc: null, channel: null, candidates: [], received: [], bytes: 0, timeout: null };
   state.active = t;
@@ -308,8 +316,8 @@ async function acceptIncoming() {
   catch (err) { await cancelTransfer(err.message, false); }
 }
 async function declineIncoming() {
-  const request = state.incoming;
-  state.incoming = null; show('incoming', false); wakePoll(); renderPeers();
+  const request = clearIncoming();
+  renderPeers();
   if (request) try { await signal(request.from, 'decline'); } catch { /* disconnected */ }
 }
 function createConnection(t) {
@@ -390,7 +398,15 @@ async function handleSignal(message) {
       await signal(from, 'decline'); return;
     }
     const sender = state.peers.find((x) => x.id === from)?.name || '다른 기기';
-    state.incoming = { from, sender, body };
+    const incoming = { from, sender, body, timeout: null };
+    state.incoming = incoming;
+    incoming.timeout = setTimeout(() => {
+      if (state.incoming !== incoming) return;
+      clearIncoming();
+      renderPeers();
+      notice('파일 수신 요청이 만료되었습니다. 다시 요청해주세요.');
+      void signal(from, 'decline').catch(() => {});
+    }, INVITE_RESPONSE_TIMEOUT_MS);
     wakePoll();
     $('incoming-title').textContent = `${sender}에서 파일을 보내려고 합니다.`;
     $('incoming-detail').textContent = `${body.name} · ${sizeText(body.size)}`;
@@ -541,7 +557,17 @@ async function loop(loopId) {
       });
       if (!state.running || state.loopId !== loopId || session !== state.session) return;
       // A failed peer-list refresh must not abort a healthy WebRTC transfer.
-      for (const message of payload.messages || []) await handleSignal(message);
+      // CGI poll consumes its message queue. Never discard the remaining
+      // messages just because one negotiation step failed (e.g. WebKit SDP).
+      for (const message of payload.messages || []) {
+        try { await handleSignal(message); }
+        catch (err) {
+          console.warn('ArcDrop: signaling message failed', message?.kind || 'unknown', err?.message || err);
+          if (state.active?.peerId === message?.from)
+            await cancelTransfer(`연결 협상 실패: ${err?.message || '알 수 없는 오류'}`);
+          else notice(`기기 연결 요청 처리 실패: ${err?.message || '알 수 없는 오류'}`, true);
+        }
+      }
       if (failures) notice('');
       failures = 0;
       setConnectionStatus('online', '로컬 연결');

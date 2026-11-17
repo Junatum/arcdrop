@@ -5,7 +5,7 @@
 **ArcDrop — by SmartSafeHub**. Lightweight, open-source, LAN-only peer-to-peer file sharing for OpenWrt.
 
 - License: **GPL-3.0-or-later**; independent implementation, no PairDrop code or assets reused.
-- Package: `smartsafehub-app-arcdrop` (`0.1.0-r11`).
+- Package: `smartsafehub-app-arcdrop` (`0.1.0-r12`).
 - Sender/receiver browsers transfer file bytes via encrypted **WebRTC RTCDataChannel**, with `iceServers: []` (no external STUN/TURN).
 - The router only serves a small local UI and passes bounded discovery/SDP/ICE metadata; **no file bytes are sent to or stored on the router**, cloud or local disk.
 - The signaling metadata (device name, IP, session token, SDP/ICE messages) temporarily resides in `/tmp/arcdrop` (tmpfs). Session metadata expires after 45 seconds of inactivity.
@@ -85,6 +85,7 @@ sh tests/test-openwrt-commands.sh
 
 ## Documentation
 
+- [Release validation checklist](docs/VALIDATION.md)
 - [Development guide](docs/DEVELOPMENT.md) ([한국어](docs/ko/DEVELOPMENT.md))
 - [Installation](docs/INSTALLATION.md) and [Deployment security](docs/DEPLOYMENT.md)
 - [Architecture](docs/ARCHITECTURE.md)
@@ -100,16 +101,18 @@ sh tests/test-openwrt-commands.sh
 - `Makefile`, `root/etc/arcdrop.conf`: OpenWrt APK package sources. The tracked configuration is installed unchanged at `/etc/arcdrop.conf`.
 - `spec/contracts_spec.sh` and `.shellspec`: Jarbis-style ShellSpec test specification.
 - `tests/`: CGI, browser client and OpenWrt/package contracts; CI integrity guard.
-- `e2e/browser_e2e.py`: optional Playwright/WebRTC integration test (not run by ShellSpec CI).
+- `e2e/browser_e2e.py`: optional Playwright/WebRTC integration test (separate manual GitHub Actions workflow, not part of mandatory ShellSpec CI).
 - `docs/DEPLOYMENT.md`: security, HTTPS and validation notes.
 
-For optional real-browser E2E testing (requires Playwright, Chromium, and OpenSSL):
+For an **optional** two-browser test on macOS or Linux (requires Playwright, OpenSSL, and a host C compiler/json-c):
 
 ```sh
+python3 -m pip install 'playwright>=1.50,<2'
+python3 -m playwright install chromium
 python3 e2e/browser_e2e.py
 ```
 
-This optional browser test could not complete in the current sandbox because Chromium blocks localhost navigation by administrator policy; it must be run on a normal developer machine. The automated CGI and static JavaScript tests are separate and run with `shellspec`.
+The E2E runner now detects local Chrome/Chromium on Mac and Linux and can use `ARCDROP_E2E_BROWSER_PATH` for a custom binary. To try another desktop engine, set `ARCDROP_E2E_BROWSER=webkit` or `firefox` after installing that browser with Playwright. The E2E checks **both transfer directions, decline, and payload isolation**; it is not an iPadOS emulator. It could not run in the current sandbox due to blocked loopback navigation, so it remains optional and must be tested on a normal developer machine. See [release validation](docs/VALIDATION.md).
 
 ### Discovery cadence and presence (0.1.0-r11)
 

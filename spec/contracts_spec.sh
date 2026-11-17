@@ -32,6 +32,13 @@ Describe 'ArcDrop ShellSpec 계약 테스트'
     The error should be blank
   End
 
+  It '선택형 브라우저 E2E가 macOS 및 Linux에서 실행 가능하고 양방향 전송을 검증한다'
+    When run command python3 "$SHELLSPEC_PROJECT_ROOT/tests/test_e2e_portability.py"
+    The status should be success
+    The output should include 'OK'
+    The error should be blank
+  End
+
   It '프론트엔드 JavaScript 문법을 확인한다'
     When run command sh "$SHELLSPEC_PROJECT_ROOT/tests/test-js-syntax.sh"
     The status should be success

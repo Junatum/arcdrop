@@ -49,3 +49,7 @@ See [deployment security](DEPLOYMENT.md), [installation](INSTALLATION.md), and [
 ## Advisory peer presence (0.1.0-r11)
 
 The CGI continues to authenticate each short-lived session, then records optional browser-poll hints (`visible`, `busy`) and the last poll time under `/tmp/arcdrop`. On a peer-list request, it returns an advisory presence label when a poll has occurred. A recent foreground poll indicates availability, while an in-progress transfer, a background tab, or a delayed response is labeled separately. UI availability **does not authorize signaling, prove ICE reachability, or substitute for explicit acceptance**. Legacy clients with missing presence fields retain their previous discovery behavior. Data payloads continue to bypass the router.
+
+## Signal failure handling (0.1.0-r12)
+
+Incoming invitations expire after 30 seconds if not accepted/declined. The browser processes each queued poll message independently; a malformed SDP/failed exchange cancels the affected transfer but does not discard later messages in that poll batch. This is an additional resilience measure, **not a guarantee of successful WebRTC connectivity**. Full validation matrix: [VALIDATION.md](VALIDATION.md).

@@ -304,3 +304,54 @@ test('백그라운드에서는 기기 목록 조회를 생략해 공유기 부�
   assert.deepEqual(t.requests.map((request) => request.action), ['poll']);
   assert.equal(t.requests[0].data.visible, false);
 });
+
+test('수신 초대가 방치되면 자동 만료되고 타이머가 정리된다', async () => {
+  const t = setup();
+  const from = 'e'.repeat(24);
+  await evaluate(t, `handleSignal({from:'${from}',kind:'invite',body:{name:'hello.txt',size:3}})`);
+  assert.equal(evaluate(t, 'state.incoming.from'), from);
+  assert.equal(t.get('incoming').classList.contains('hidden'), false);
+  assert.equal(evaluate(t, 'INVITE_RESPONSE_TIMEOUT_MS'), 30000);
+  evaluate(t, 'clearIncoming()');
+  assert.equal(evaluate(t, 'state.incoming'), null);
+  assert.equal(t.get('incoming').classList.contains('hidden'), true);
+});
+
+test('손상된 SDP 메시지 하나가 실패해도 같은 폴링의 후속 신호를 처리한다', async () => {
+  const t = setup({responses: {poll: {status: 200, body: {
+    messages: [{from:'f'.repeat(24), kind:'broken', body:{}},
+      {from:'f'.repeat(24), kind:'next', body:{}}],
+  }}}});
+  await evaluate(t, 'ensureSession()');
+  t.context.handled = [];
+  evaluate(t, `handleSignal = async (message) => {
+    if (message.kind === 'broken') throw new Error('SDP rejected');
+    handled.push(message.kind);
+  }`);
+  evaluate(t, 'pollWait = async () => { state.running = false; }');
+  await evaluate(t, '__realLoop(state.loopId)');
+  assert.deepEqual([...t.context.handled], ['next']);
+  assert.equal(evaluate(t, 'state.session !== null'), true);
+  assert.ok(t.get('notice-text').textContent.includes('SDP rejected'));
+});
+
+test('전송 중 SDP 협상 오류 발생 시 종료하고도 후속 메시지를 처리한다', async () => {
+  const t = setup({responses: {poll: {status: 200, body: {
+    messages: [{from:'f'.repeat(24), kind:'broken', body:{}},
+      {from:'f'.repeat(24), kind:'next', body:{}}],
+  }}}});
+  await evaluate(t, 'ensureSession()');
+  const active = {peerId:'f'.repeat(24), role:'sender', pc:null,channel:null,timeout:null};
+  t.context.active = active;
+  evaluate(t, 'state.active = active');
+  t.context.handled = [];
+  evaluate(t, `handleSignal = async (message) => {
+    if (message.kind === 'broken') throw new Error('SDP rejected');
+    handled.push(message.kind);
+  }`);
+  evaluate(t, 'pollWait = async () => { state.running = false; }');
+  await evaluate(t, '__realLoop(state.loopId)');
+  assert.deepEqual([...t.context.handled], ['next']);
+  assert.equal(evaluate(t, 'state.active'), null);
+  assert.match(t.get('notice-text').textContent, /SDP rejected/);
+});

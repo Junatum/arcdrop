@@ -30,3 +30,7 @@ Do not change `lan_interface` to `wan`, a guest interface or an unrestricted bri
 6. Add official SmartSafeHub Apps catalog metadata, compatibility matrix, publication approval and firmware-update restore using the actual Hub/Pipeline repositories (not present in this standalone archive).
 
 Do not mark this prototype ready for production before these checks pass.
+
+## Release gate tracking
+
+The detailed supported-device test matrix and remaining external dependencies are tracked in [VALIDATION.md](VALIDATION.md). A passing host contract suite is insufficient for a production deployment.

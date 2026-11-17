@@ -1,0 +1,52 @@
+name: Optional browser E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: 'Runner OS'
+        required: true
+        default: ubuntu-24.04
+        type: choice
+        options:
+          - ubuntu-24.04
+          - macos-15
+      browser:
+        description: 'Desktop browser engine (iPadOS still requires real-device testing)'
+        required: true
+        default: chromium
+        type: choice
+        options:
+          - chromium
+          - firefox
+          - webkit
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    name: E2E (${{ inputs.runner }}, ${{ inputs.browser }})
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install Linux CGI dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libjson-c-dev pkg-config gcc openssl
+      - name: Install macOS CGI dependencies
+        if: runner.os == 'macOS'
+        run: brew install json-c pkgconf
+      - name: Install optional browser dependencies
+        run: |
+          python3 -m pip install 'playwright>=1.50,<2'
+          python3 -m playwright install ${{ inputs.browser }}
+      - name: Execute real browser LAN transfer checks
+        env:
+          ARCDROP_E2E_BROWSER: ${{ inputs.browser }}
+        run: python3 e2e/browser_e2e.py

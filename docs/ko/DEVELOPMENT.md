@@ -2,7 +2,7 @@
 
 **언어:** [English](../DEVELOPMENT.md) | [한국어](DEVELOPMENT.md)
 
-> 기준 소스: ArcDrop `0.1.0-r11`. 2026-11-17.
+> 기준 소스: ArcDrop `0.1.0-r12`. 2026-11-17.
 >
 > 개발·테스트·디자인 미리보기를 위한 문서입니다. **정적 UI 미리보기와 실제 WebRTC 전송 테스트는 별개**입니다.
 
@@ -130,7 +130,7 @@ Node.js 테스트는 `--test-reporter=tap`을 명시합니다. Node.js 기본 �
 
 CI는 테스트 등록 누락 검사 → BusyBox 검사 → 필수 도구/라이브러리 설치 → ShellSpec 실행 순서입니다. `tests/`에 테스트 파일을 추가하면 `spec/contracts_spec.sh`에 **한 번만 등록**해야 하며, 누락하면 무결성 검사가 실패합니다.
 
-## 6. 선택형 실브라우저 E2E 테스트 — 현재 제한 사항
+## 6. 선택형 실브라우저 E2E 테스트
 
 선택 실행 파일은 `e2e/browser_e2e.py`입니다. 임시 HTTPS 서버, CGI 테스트 바이너리, Playwright의 **브라우저 2개 컨텍스트**로 WebRTC 파일 전송과 저장 결과를 검증하도록 작성되어 있습니다.
 
@@ -139,11 +139,11 @@ CI는 테스트 등록 누락 검사 → BusyBox 검사 → 필수 도구/라이
 python3 -m pip install playwright
 python3 -m playwright install chromium
 
-# E2E 테스트 실행 (현 소스는 Linux 환경을 우선 가정)
+# Mac에서도 실행 가능 (json-c 및 C 컴파일러 필요)
 python3 e2e/browser_e2e.py
 ```
 
-**주의: 현 소스는 macOS에서 바로 동작하도록 완성되지 않았습니다.** Playwright Chromium 경로가 `/usr/bin/chromium`으로 고정되어 있고, C 컴파일도 `-ljson-c`만 사용하여 Homebrew 경로를 자동으로 찾지 않습니다. 명령 자체가 성공할 것으로 간주하지 마세요. 이 두 항목을 보강하고 macOS 실제 실행 결과를 확인하기 전까지, Mac에서는 **ShellSpec + 정적 디자인 미리보기**를 우선 사용하세요.
+**현재 상태:** macOS Homebrew의 `json-c`, LibreSSL 및 Chrome/Chromium 실행 경로를 탐색하도록 개선했습니다. `brew install json-c pkgconf` 후 E2E를 실행할 수 있습니다. 다만 macOS 실브라우저 실행과 iPadOS 실기기 검증은 이 환경에서 확인하지 못했으므로 성공을 보장하지 않습니다. 선택형 테스트의 결과와 ShellSpec 계약 결과는 구분해 주세요.
 
 E2E 테스트의 임시 인증서와 `ARCDROP_TEST_MODE`는 **테스트 전용**입니다. 프로덕션 공유기의 CGI 보안 검사를 완화하기 위해 사용하면 안 됩니다.
 
@@ -187,7 +187,7 @@ find bin/packages -name 'smartsafehub-app-arcdrop*.apk'
 | CSS/화면 수정 사항이 반영되지 않음 | 브라우저 새로고침 및 개발자 도구 캐시 확인 |
 | ShellSpec CGI 테스트에서 `json-c` 오류 | `brew install json-c pkgconf`, C 컴파일러 및 라이브러리 경로 확인 |
 | ShellSpec Node 테스트에서 출력 형식 오류 | `node --test --test-reporter=tap` 사용 여부 확인 |
-| `e2e/browser_e2e.py`가 Mac에서 실패 | 현재 Chromium 경로 및 `json-c` 컴파일 플래그가 macOS 미대응 |
+| `e2e/browser_e2e.py`가 Mac에서 실패 | `brew install json-c pkgconf`, `python3 -m playwright install chromium`, 필요 시 `ARCDROP_E2E_BROWSER_PATH` 사용 |
 | 실기기에서 웹페이지 404 | `/www/arcdrop/index.html` 설치 경로 확인 |
 | 실기기에서 CGI 404/403 | `/cgi-bin/arcdrop`, HTTPS, Origin, 허용 LAN 인터페이스 확인 |
 | 상대 기기는 보이나 WebRTC 연결 실패 | 네트워크 격리·VLAN·ICE host 후보·브라우저 호환성 확인 |
@@ -242,3 +242,7 @@ Offer/Answer를 전송하기 전 로컬 ICE 후보 수집을 최대 10초간 기
 - STUN/TURN을 추가하지 않았으며 공유기에서 파일 본문을 저장하지 않습니다.
 
 코드 변경 후 `shellspec`을 실행합니다. CGI 및 Node 테스트에는 상태 전환, 구버전 클라이언트, 응답 지연, 모바일 복귀 시나리오가 추가되었습니다.
+
+### 선택형 실브라우저 E2E 개선 (0.1.0-r12)
+
+macOS Homebrew/LibreSSL과 Linux의 라이브러리 및 브라우저 실행 경로를 자동 탐색합니다. 양방향 전송·수신 거절·라우터 파일 본문 미저장을 선택형 테스트로 검증하도록 확장했습니다. Mac에서는 `brew install json-c pkgconf`, `python3 -m playwright install chromium` 실행 후 `python3 e2e/browser_e2e.py`를 사용하세요. 실제 iPadOS 브라우저 테스트와 공인 HTTPS 신뢰, SmartSafeHub Apps 카탈로그 통합은 아직 필요합니다. 상세 검증은 [VALIDATION.md](../VALIDATION.md)를 참조하세요.
