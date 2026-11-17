@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title">
+  <title id="title">ArcDrop</title>
+  <!-- Original ArcDrop mark: a single, continuous open infinity ribbon. -->
+  <defs>
+    <linearGradient id="tile" x1="16" y1="12" x2="231" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#35BDFF"/>
+      <stop offset=".43" stop-color="#2469FA"/>
+      <stop offset=".79" stop-color="#2447EC"/>
+      <stop offset="1" stop-color="#5634E5"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="54" y1="99" x2="210" y2="165" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8FCFF"/>
+      <stop offset=".43" stop-color="#FFFFFF"/>
+      <stop offset=".67" stop-color="#EFFAFF"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
+    </linearGradient>
+    <linearGradient id="flow" x1="95" y1="161" x2="183" y2="91" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3DEBFF" stop-opacity="0"/>
+      <stop offset=".19" stop-color="#59F4FF" stop-opacity=".95"/>
+      <stop offset=".53" stop-color="#4FE8FF"/>
+      <stop offset=".82" stop-color="#83F4FF" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#B9F8FF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="59" fill="url(#tile)"/>
+  <path d="M110 91 C89 69 61 80 53 102 C40 137 66 170 96 158 C113 151 125 127 140 109 C153 93 168 88 182 93 C205 99 211 125 198 146 C187 165 163 168 148 153"
+        fill="none" stroke="url(#ribbon)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Exact same bezier segment as the underlying ribbon: no seams or sharp overlays. -->
+  <path d="M96 158 C113 151 125 127 140 109 C153 93 168 88 182 93"
+        fill="none" stroke="url(#flow)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

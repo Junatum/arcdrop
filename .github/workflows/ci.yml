@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    name: ArcDrop ShellSpec contracts
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Verify all tests are included in CI
+        run: sh tests/test-suite-integrity.sh
+
+      - name: Verify OpenWrt 25.12 BusyBox compatibility
+        run: sh tests/test-openwrt-commands.sh
+
+      - name: Install host CGI build dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libjson-c-dev pkg-config gcc
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Install ShellSpec
+        env:
+          SHELLSPEC_VERSION: 0.28.1
+        run: |
+          mkdir -p "$HOME/.local/bin" "$HOME/.local/lib"
+          git clone --depth 1 --branch "$SHELLSPEC_VERSION" \
+            https://github.com/shellspec/shellspec.git "$HOME/.local/lib/shellspec"
+          ln -s "$HOME/.local/lib/shellspec/shellspec" "$HOME/.local/bin/shellspec"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/shellspec" --version
+
+      - name: Run ShellSpec contracts
+        run: shellspec

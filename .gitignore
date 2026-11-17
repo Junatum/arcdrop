@@ -1,0 +1,18 @@
+# Operating-system files
+.DS_Store
+.AppleDouble
+.LSOverride
+__MACOSX/
+
+# Local test/runtime artifacts (never package or commit)
+__pycache__/
+*.py[cod]
+.pytest_cache/
+node_modules/
+web/dist/
+web/build/
+
+# etc
+*.orig
+*.rej
+/*.patch
