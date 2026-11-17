@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // ArcDrop browser ui module.
-import { state, DEVICE_TYPES } from './core.js';
+import { DEVICE_TYPES } from './core.js';
 
 export const $ = (id) => document.getElementById(id);
 

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // ArcDrop browser session module.
-import { state, discoveryBusy, pollWait, wakePoll } from './core.js';
+import { state, discoveryBusy, pollWait, wakePoll, DEVICE_TYPES } from './core.js';
 import { $, setConnectionStatus, displayProfile, notice } from './ui.js';
 import { api } from './api.js';
 import { refreshPeers } from './discovery.js';

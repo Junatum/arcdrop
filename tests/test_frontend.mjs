@@ -85,12 +85,14 @@ import path from 'node:path';
 import vm from 'node:vm';
 const root = process.cwd();
 const element = () => ({ addEventListener() {}, classList: { toggle() {} }, dataset: {}, textContent: '' });
+const storedValues = new Map([['arcdrop-name', 'My Tablet'], ['arcdrop-device-type', 'tablet']]);
 const context = vm.createContext({
   document: { getElementById: element, querySelector: () => null, documentElement: {dataset:{}},
     body: {classList:{toggle(){}}}, addEventListener(){} },
   window: { isSecureContext: false, addEventListener(){} },
   location: {protocol:'http:'},
   setTimeout, clearTimeout, console, TextEncoder, Blob, navigator:{},
+  localStorage: { getItem(key) { return storedValues.get(key) ?? null; } },
 });
 const cache = new Map();
 function load(filename) {
@@ -112,6 +114,13 @@ await entry.evaluate();
 if (cache.size !== 8) throw Error('Module graph size: ' + cache.size);
 const state = [...cache.values()].find((mod) => mod.identifier.endsWith('/core.js')).namespace.state;
 if (state.active !== null || state.session !== null) throw Error('Unexpected transfer state');
+const session = [...cache.values()].find((mod) => mod.identifier.endsWith('/session.js')).namespace;
+const profile = session.savedProfile();
+if (profile.name !== 'My Tablet' || profile.deviceType !== 'tablet')
+  throw Error('Saved profile lost its device type across the module boundary');
+storedValues.set('arcdrop-device-type', 'unknown');
+if (session.savedProfile().deviceType !== 'desktop')
+  throw Error('Unknown device type must fall back to automatic detection');
 `;
   const result = spawnSync(process.execPath, ['--no-warnings', '--experimental-vm-modules',
     '--input-type=module', '-e', code], {cwd: root, encoding: 'utf8'});

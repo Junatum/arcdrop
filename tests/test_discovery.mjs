@@ -187,6 +187,14 @@ test('운영 및 데모 화면은 공통 기기 설정 모달을 사용하며 CS
   assert.match(app, /event\.persisted/);
 });
 
+test('기기 유형 저장값은 허용된 유형만 복원하며 잘못된 값은 기본 유형으로 대체한다', () => {
+  const t = setup({ local: { 'arcdrop-name': 'My Tablet', 'arcdrop-device-type': 'tablet' } });
+  assert.equal(evaluate(t, 'savedProfile().name'), 'My Tablet');
+  assert.equal(evaluate(t, 'savedProfile().deviceType'), 'tablet');
+  t.localStorage.setItem('arcdrop-device-type', 'unknown');
+  assert.equal(evaluate(t, 'savedProfile().deviceType'), 'desktop');
+});
+
 test('스토리지 getter 자체가 예외를 던져도 기기 등록은 성공한다', async () => {
   const t = setup();
   Object.defineProperty(t.context, 'localStorage', { get() { throw new Error('denied'); } });
@@ -256,7 +264,6 @@ test('일시적인 CGI poll 오류는 전송 중 WebRTC 채널을 취소하지 �
 
 test('모바일이 다시 표시되면 느린 백그라운드 폴링 대기를 깨운다', async () => {
   const t = setup(); await evaluate(t, 'ensureSession()');
-  let resolvePoll;
   evaluate(t, 'globalThis.__waitResult = pollWait(12000)');
   t.document.visibilityState = 'visible';
   t.documentEvents.get('visibilitychange')();

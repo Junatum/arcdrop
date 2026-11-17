@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // ArcDrop browser signaling module.
 import { state, LIMIT, sizeText, wakePoll } from './core.js';
-import { $, notice, show, progress } from './ui.js';
+import { $, notice, show } from './ui.js';
 import { signal } from './api.js';
 import { renderPeers } from './discovery.js';
-import { clearIncoming, cancelTransfer, armTimeout, installChannel, resetTransfer } from './transfer.js';
+import { clearIncoming, cancelTransfer, armTimeout, installChannel } from './transfer.js';
 
 export const rtcConfig = { iceServers: [] }; // No external STUN/TURN; LAN P2P only.
 
