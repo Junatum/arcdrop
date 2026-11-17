@@ -28,7 +28,8 @@ The router serves the HTML/CSS/JS/SVG and exchanges **signaling metadata only**;
 | Sessions and discovery | `src/session.c` | Registration, session checks and peer presence |
 | WebRTC signaling | `src/signaling.c` | Consent validation, SDP/ICE metadata and bounded queue |
 | Shared CGI contract | `src/arcdrop.h` | Explicit request context and module interfaces |
-| Browser client | `web/app.js` | Peer discovery and encrypted WebRTC data-channel file transfer |
+| Browser bootstrap | `web/app.js` | ES module entry, browser event listeners and startup |
+| Browser modules | `web/js/{core,api,ui,discovery,transfer,signaling,session}.js` | Shared state, CGI API, UI, discovery, file transfer, WebRTC negotiation and session polling |
 | Browser UI | `web/index.html`, `web/style.css`, `web/icon.svg` | Responsive device-centric transfer UI |
 | Local design demo | `web/demo.html`, `web/demo.js` | Isolated preview only; not installed to routers |
 | Configuration | `root/etc/arcdrop.conf` | Trusted LAN interface (`br-lan` by default) |
@@ -95,3 +96,18 @@ transaction guarantee** (the directory lives in volatile `/tmp`).
 
 The `.cleanup` and occasional `.transaction` are metadata only, never file
 payload bytes. Neither introduces a new background service or browser API.
+
+## Browser ES module boundaries (0.1.0-r16)
+
+The production page loads `web/app.js` with `type="module"` and native relative
+imports. `core.js` owns shared state and limits; `api.js` owns the JSON CGI
+transport; `ui.js` only updates visual state; `discovery.js` maintains peer
+order and selection; `transfer.js` handles consent and file chunk streaming;
+`signaling.js` negotiates WebRTC ICE/SDP; `session.js` handles session renewal
+and polling. There is no bundler, external dependency, or file-content relay.
+The entry point injects the invite callback into discovery, avoiding a
+transfer/discovery import cycle and keeping module loading straightforward.
+
+OpenWrt installs the exact `web/js/*.js` module set into
+`/www/arcdrop/js/` and serves it with the same HTTPS origin and CSP as the
+entry point. The separate demo remains uninstalled.

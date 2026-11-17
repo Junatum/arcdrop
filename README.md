@@ -5,7 +5,7 @@
 **ArcDrop — by SmartSafeHub**. Lightweight, open-source, LAN-only peer-to-peer file sharing for OpenWrt.
 
 - License: **GPL-3.0-or-later**; independent implementation, no PairDrop code or assets reused.
-- Package: `smartsafehub-app-arcdrop` (`0.1.0-r15`).
+- Package: `smartsafehub-app-arcdrop` (`0.1.0-r16`).
 - Sender/receiver browsers transfer file bytes via encrypted **WebRTC RTCDataChannel**, with `iceServers: []` (no external STUN/TURN).
 - The router only serves a small local UI and passes bounded discovery/SDP/ICE metadata; **no file bytes are sent to or stored on the router**, cloud or local disk.
 - The signaling metadata (device name, IP, session token, SDP/ICE messages) temporarily resides in `/tmp/arcdrop` (tmpfs). Session metadata expires after 45 seconds of inactivity.

@@ -3,6 +3,19 @@
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
 
+## 0.1.0-r16 (2026-11-17)
+
+### Improved
+- Split the browser client into native ES modules for session management, device discovery, signaling, file transfer and UI, without a bundler.
+- Keep the app entry point focused on startup and DOM event listeners; install all modules with the OpenWrt package.
+
+### Compatibility
+- Preserve HTTPS/CSP, LAN-only ICE, explicit transfer consent, JSON CGI contracts and the isolated design demo.
+
+### Tests
+- Add module graph, installation and browser fixture regressions for the unbundled client.
+
+
 ## 0.1.0-r15 (2026-11-17)
 
 ### Fixed

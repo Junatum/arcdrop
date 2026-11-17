@@ -26,6 +26,10 @@ require('$(INSTALL_BIN) $(PKG_BUILD_DIR)/arcdrop $(1)/www/cgi-bin/arcdrop' in mk
 for file in ('app.js', 'index.html', 'style.css', 'icon.svg'):
     require(f'./web/{file} $(1)/www/arcdrop/{file}' in mk, f'{file} 소스 설치 경로')
     require((root / 'web' / file).is_file(), f'{file} 원본')
+require('$(INSTALL_DATA) $(addprefix ./web/js/,$(ARCDROP_WEB_MODULES)) $(1)/www/arcdrop/js/' in mk,
+        '모든 ES 모듈의 OpenWrt 설치 규칙')
+require('$(INSTALL_DIR) $(1)/www/arcdrop $(1)/www/arcdrop/js' in mk,
+        'ES 모듈 설치 디렉터리 생성')
 require('$(INSTALL_CONF) ./root/etc/arcdrop.conf $(1)/etc/arcdrop.conf' in mk,
         'LAN 인터페이스 설정 설치')
 config = root / 'root/etc/arcdrop.conf'
@@ -38,7 +42,7 @@ require('$(INSTALL_CONF) ./openwrt/arcdrop.conf' not in mk,
         '이전 설정 파일 경로로 설치하지 않음')
 require((root / 'LICENSES/GPL-3.0.txt').is_file(), '라이선스 원문')
 require((root / 'LICENSES/SOURCES.md').is_file(), '라이선스 출처')
-require('iceServers: []' in (root / 'web/app.js').read_text(), '외부 STUN/TURN 비활성화')
+require('iceServers: []' in (root / 'web/js/signaling.js').read_text(), '외부 STUN/TURN 비활성화')
 version = re.search(r'^PKG_VERSION:=(\S+)$', mk, re.M)
 revision = re.search(r'^PKG_RELEASE:=(\d+)$', mk, re.M)
 require(version is not None and revision is not None, '패키지 버전 정의')

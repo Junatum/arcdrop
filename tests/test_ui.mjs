@@ -4,9 +4,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import vm from 'node:vm';
+import { browserTestSource } from '../tools/browser_vm.mjs';
 const root = resolve(import.meta.dirname, '..');
 const read = (name) => readFileSync(resolve(root, name), 'utf8');
-const app = read('web/app.js');
+const app = browserTestSource(root);
 const css = read('web/style.css');
 const html = read('web/index.html');
 const demo = read('web/demo.html');
@@ -189,7 +190,7 @@ test('브라우저 E2E도 기기 선택 후 파일을 고르는 새 흐름을 �
   assert.doesNotMatch(e2e, /locator\('\.device'\)/);
 });
 test('디자인 데모는 실제 프로덕션 런타임 및 API와 격리된다', () => {
-  assert.match(html, /script src="\.\/app\.js" defer/);
+  assert.match(html, /script type="module" src="\.\/app\.js"/);
   assert.doesNotMatch(html, /demo\.js|DESIGN PREVIEW/);
   assert.match(demo, /script src="\.\/demo\.js" defer/);
   assert.doesNotMatch(demo, /script src="\.\/app\.js"/);

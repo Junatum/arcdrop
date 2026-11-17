@@ -35,7 +35,7 @@ Replace `192.168.1.1` with the actual trusted LAN address and run the following 
 
 ```sh
 apk info -e smartsafehub-app-arcdrop
-ls -l /www/arcdrop/index.html /www/arcdrop/app.js /www/arcdrop/style.css /www/arcdrop/icon.svg /www/cgi-bin/arcdrop
+ls -l /www/arcdrop/index.html /www/arcdrop/app.js /www/arcdrop/js/core.js /www/arcdrop/js/transfer.js /www/arcdrop/style.css /www/arcdrop/icon.svg /www/cgi-bin/arcdrop
 cat /etc/arcdrop.conf
 /etc/init.d/uhttpd status
 uci show uhttpd.main

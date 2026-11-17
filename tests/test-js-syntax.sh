@@ -3,5 +3,8 @@
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 node --check "$ROOT/web/app.js"
+for module in "$ROOT"/web/js/*.js; do
+  node --check "$module"
+done
 node --check "$ROOT/web/demo.js"
 echo 'PASS: ArcDrop 브라우저 JavaScript 문법 검사'

@@ -61,6 +61,15 @@ class ArcDropE2EPortabilityTests(unittest.TestCase):
         self.assertNotIn('push:', workflow)
         self.assertNotIn('pull_request:', workflow)
 
+    def test_브라우저_E2E는_운영_모듈만_제공하고_데모를_차단한다(self):
+        self.assertIn("modules = ('core.js', 'api.js', 'ui.js'", SOURCE)
+        self.assertIn("name not in (f'js/{module}' for module in modules)", SOURCE)
+        self.assertIn('self.send_error(404)', SOURCE)
+        self.assertIn("mimetypes.guess_type(name)", SOURCE)
+        for name in ('core', 'api', 'ui', 'discovery', 'transfer', 'signaling', 'session'):
+            self.assertTrue((ROOT / f'web/js/{name}.js').is_file())
+        self.assertNotIn("'demo.js', 'style.css'", SOURCE)
+
     def test_실제_브라우저_테스트는_양방향과_거절_파일_미저장을_검증한다(self):
         self.assertIn('send(a, b,', SOURCE)
         self.assertIn('send(b, a,', SOURCE)

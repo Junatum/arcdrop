@@ -83,7 +83,9 @@ class RouterHTTPHandler(BaseHTTPRequestHandler):
         if self.path not in ('/arcdrop', '/arcdrop/') and not self.path.startswith('/arcdrop/'):
             self.send_error(404)
             return
-        if name not in ('index.html', 'app.js', 'style.css', 'icon.svg'):
+        allowed = ('index.html', 'app.js', 'style.css', 'icon.svg')
+        modules = ('core.js', 'api.js', 'ui.js', 'discovery.js', 'transfer.js', 'signaling.js', 'session.js')
+        if name not in allowed and name not in (f'js/{module}' for module in modules):
             self.send_error(404)
             return
         data = (ROOT / 'web' / name).read_bytes()

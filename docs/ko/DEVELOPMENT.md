@@ -2,7 +2,7 @@
 
 **언어:** [English](../DEVELOPMENT.md) | [한국어](DEVELOPMENT.md)
 
-> 기준 소스: ArcDrop `0.1.0-r15`. 2026-11-17.
+> 기준 소스: ArcDrop `0.1.0-r16`. 2026-11-17.
 >
 > 개발·테스트·디자인 미리보기를 위한 문서입니다. **정적 UI 미리보기와 실제 WebRTC 전송 테스트는 별개**입니다.
 
@@ -33,7 +33,8 @@ arcdrop/
 │   ├── index.html             # 화면 마크업
 │   ├── style.css              # 다크/라이트·반응형 스타일
 │   ├── icon.svg               # 공통 ArcDrop 무한대 전송 흐름 SVG
-│   └── app.js                 # 기기 검색, 초대/승인, WebRTC 전송
+│   ├── app.js                 # ES 모듈 진입점·이벤트 연결
+│   └── js/                   # 상태·API·UI·검색·전송·시그널링·세션 모듈
 ├── spec/contracts_spec.sh     # 한글 ShellSpec 계약
 ├── tests/                     # Python/Node.js/셸 단위·계약 테스트
 ├── tools/check_test_coverage.py
@@ -256,3 +257,12 @@ macOS Homebrew/LibreSSL과 Linux의 라이브러리 및 브라우저 실행 경�
 - 전체 세션 디렉터리 정리 주기는 15초로 제한하되, 세션 인증의 45초 만료 검증과 기기 등록·목록 조회의 직접 검사는 유지합니다.
 - 기기 두 대의 승인 및 시그널링 상태를 변경할 때는 임시 메타데이터 저널 `.transaction`을 만들어 놓습니다. 둘 중 하나의 저장이 실패하거나 CGI가 중간에 중단되면 다음 요청에서 두 기기의 이전 상태를 복구한 다음 처리를 재개합니다. 이는 `/tmp` 내 프로세스 장애 복구이지 전원 장애 시 영속성 보장은 아닙니다.
 - `/tmp/arcdrop`의 `.lock`, `.cleanup`, `.transaction`은 제어용 메타데이터이며 **파일 본문을 저장하거나 중계하지 않습니다**.
+
+## 3차 브라우저 모듈 분리 (0.1.0-r16)
+
+- 운영용 `web/app.js`는 브라우저 기본 ES Module 진입점으로만 사용하며, `web/index.html`에서 `type="module"`로 불러옵니다.
+- `web/js/core.js`는 전송 용량과 공유 상태, `api.js`는 CGI JSON 통신, `ui.js`는 화면 조작과 테마, `discovery.js`는 기기 목록·선택을 담당합니다.
+- `transfer.js`는 초대 승인과 파일 청크 송수신, `signaling.js`는 ICE/SDP 협상, `session.js`는 세션 유지·폴링·복구를 담당합니다.
+- 별도 npm/Vite 번들러 없이 소스 그대로 `/www/arcdrop/js/`에 설치합니다. 데모 화면은 계속 제품 패키지에 포함하지 않습니다.
+- `node --test tests/test_frontend.mjs tests/test_ui.mjs tests/test_discovery.mjs`로 기존 동작과 실제 ES 모듈 import/export 초기화를 검증합니다.
+- `python3 e2e/browser_e2e.py`는 선택형이며 Chromium/WebKit 등 실제 브라우저 검증용입니다.

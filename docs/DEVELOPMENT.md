@@ -2,7 +2,7 @@
 
 **Languages:** [English](DEVELOPMENT.md) | [한국어](ko/DEVELOPMENT.md)
 
-This guide describes ArcDrop **0.1.0-r15** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
+This guide describes ArcDrop **0.1.0-r16** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
 
 ## 1. Overview
 
@@ -24,7 +24,8 @@ arcdrop/
 ├── src/arcdrop.h                # Per-request context / module contract
 ├── src/{http,lan,peer_store,session,signaling,json_helpers}.c # Native modules
 ├── web/
-│   ├── index.html, app.js       # Real browser UI and WebRTC client
+│   ├── index.html, app.js       # HTML and native ES module entry point
+│   ├── js/{core,api,ui,discovery,transfer,signaling,session}.js # Browser modules
 │   ├── style.css, icon.svg      # CSS and shared infinity-flow icon
 │   └── demo.html, demo.js       # Local-only mock design preview
 ├── spec/contracts_spec.sh       # Korean ShellSpec contracts
@@ -186,3 +187,14 @@ The browser sends optional `visible` and `busy` boolean hints with its regular `
 - The actual router remains LAN-only, with no STUN/TURN service or file-content relay.
 
 Run `shellspec` after edits. The CGI presence tests and Node discovery tests cover stale and legacy states, timer selection, and mobile resumption. The design preview uses simulated peers and must not be used to claim that live presence works.
+
+## Browser module refactor (0.1.0-r16)
+
+The production page loads native ESM `web/app.js` with `type="module"` and
+relative imports of `web/js/{core,api,ui,discovery,transfer,signaling,session}.js`.
+There are no npm/runtime dependencies or generated frontend assets. OpenWrt
+installs the exact module set under `/www/arcdrop/js/`; the isolated design
+demo is never packaged. Unit tests keep existing DOM/CGI regression cases,
+while `tests/test_frontend.mjs` also links and initializes the real ES module
+graph, checking for missing imports or startup errors. Optional Playwright
+E2E tests can verify actual browser transfers.
