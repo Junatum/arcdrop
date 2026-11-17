@@ -36,6 +36,10 @@ test('중앙 기기에서 5개의 파동이 더 넓게 확산되고 모션 감�
 test('헤더는 전체 화면 너비를 사용하고 콘텐츠는 가운데에 제한한다', () => {
   assert.match(css, /\.shell\{width:100%;min-height:100svh/);
   assert.match(css, /\.top\{width:100%;padding-inline:clamp\(20px,3vw,48px\)/);
+  assert.match(css, /\.top\{[^}]*height:84px;[^}]*z-index:2\}/);
+  assert.match(css, /@media\(max-width:700px\)\{[^\n]*\.top\{padding-inline:17px;height:84px\}/);
+  assert.doesNotMatch(css, /\.top\{[^}]*border-bottom:/, '헤더 구분선은 없어야 함');
+  assert.match(css, /\.demo-toolbar\{[^}]*border-bottom:1px solid var\(--line\)/, '데모 툴바의 구분선은 유지');
   assert.match(css, /\.demo-toolbar\{width:100%;/);
   assert.match(css, /main\{width:100%;max-width:1120px;margin-inline:auto;padding-inline:30px/);
   assert.doesNotMatch(css, /\.shell\{max-width:1120px/);
