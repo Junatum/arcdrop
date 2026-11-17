@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Optional host-only native CGI coverage; no generated files in the repository.
 set -eu
-ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+ROOT=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 for command in gcc gcov python3; do
   if ! command -v "$command" >/dev/null 2>&1; then
     echo "FAIL: coverage requires $command (GCC/gcov on the host)" >&2

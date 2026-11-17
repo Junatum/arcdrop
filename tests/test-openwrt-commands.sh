@@ -1,7 +1,7 @@
 #!/bin/sh
 # BusyBox 25.12-oriented shell contract: only portable sh constructs in scripts.
 set -eu
-ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ROOT=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 for script in "$ROOT"/tests/*.sh; do
   sh -n "$script"
 done

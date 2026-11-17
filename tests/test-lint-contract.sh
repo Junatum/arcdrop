@@ -1,7 +1,7 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 set -eu
-ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+ROOT=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 python3 - "$ROOT" <<'PYTEST'
 from pathlib import Path
 import json
@@ -51,6 +51,19 @@ require(html_rules.get('missing-doctype') == 'error',
         'DOCTYPE 누락 검사 규칙 등록 누락')
 require(html_rules.get('void-style') == ['error', {'style': 'omit'}],
         'HTML-Validate void-style 규칙은 유효한 omit 값 사용')
+
+# SC1007 regression: use an explicit empty CDPATH for root resolution.
+# Keep every host-shell entry point safe when the developer sets CDPATH.
+for shell_file in (*sorted((root / 'tests').glob('*.sh')),
+                   *sorted((root / 'tools').glob('*.sh'))):
+    shell_source = shell_file.read_text(encoding='utf-8')
+    relative_name = shell_file.relative_to(root)
+    require(not re.search(r'\bCDPATH=\s+cd\b', shell_source),
+            f'{relative_name}: ShellCheck SC1007 (CDPATH assignment)')
+    for shell_line in shell_source.splitlines():
+        if shell_line.startswith('ROOT=$('):
+            require("CDPATH='' cd -- " in shell_line,
+                    f'{relative_name}: 명시적인 빈 CDPATH로 ROOT 탐색')
 
 runner = (root / 'tools/lint.sh').read_text()
 for tool in ('npm run lint:web', 'ruff check', 'shellcheck ', 'clang -std=c11',
