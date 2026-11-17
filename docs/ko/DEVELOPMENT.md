@@ -2,7 +2,7 @@
 
 **언어:** [English](../DEVELOPMENT.md) | [한국어](DEVELOPMENT.md)
 
-> 기준 소스: ArcDrop `0.1.0-r16`. 2026-11-17.
+> 기준 소스: ArcDrop `0.1.0-r17`. 2026-11-17.
 >
 > 개발·테스트·디자인 미리보기를 위한 문서입니다. **정적 UI 미리보기와 실제 WebRTC 전송 테스트는 별개**입니다.
 
@@ -258,7 +258,7 @@ macOS Homebrew/LibreSSL과 Linux의 라이브러리 및 브라우저 실행 경�
 - 기기 두 대의 승인 및 시그널링 상태를 변경할 때는 임시 메타데이터 저널 `.transaction`을 만들어 놓습니다. 둘 중 하나의 저장이 실패하거나 CGI가 중간에 중단되면 다음 요청에서 두 기기의 이전 상태를 복구한 다음 처리를 재개합니다. 이는 `/tmp` 내 프로세스 장애 복구이지 전원 장애 시 영속성 보장은 아닙니다.
 - `/tmp/arcdrop`의 `.lock`, `.cleanup`, `.transaction`은 제어용 메타데이터이며 **파일 본문을 저장하거나 중계하지 않습니다**.
 
-## 3차 브라우저 모듈 분리 (0.1.0-r16)
+## 3차 브라우저 모듈 분리 (0.1.0-r17)
 
 - 운영용 `web/app.js`는 브라우저 기본 ES Module 진입점으로만 사용하며, `web/index.html`에서 `type="module"`로 불러옵니다.
 - `web/js/core.js`는 전송 용량과 공유 상태, `api.js`는 CGI JSON 통신, `ui.js`는 화면 조작과 테마, `discovery.js`는 기기 목록·선택을 담당합니다.
@@ -266,3 +266,34 @@ macOS Homebrew/LibreSSL과 Linux의 라이브러리 및 브라우저 실행 경�
 - 별도 npm/Vite 번들러 없이 소스 그대로 `/www/arcdrop/js/`에 설치합니다. 데모 화면은 계속 제품 패키지에 포함하지 않습니다.
 - `node --test tests/test_frontend.mjs tests/test_ui.mjs tests/test_discovery.mjs`로 기존 동작과 실제 ES 모듈 import/export 초기화를 검증합니다.
 - `python3 e2e/browser_e2e.py`는 선택형이며 Chromium/WebKit 등 실제 브라우저 검증용입니다.
+
+## 언어별 lint (0.1.0-r17)
+
+lint는 개발 PC와 GitHub Actions에서만 사용하며 공유기 패키지에는 들어가지 않습니다.
+브라우저는 별도 번들러 없이 기존 ES 모듈을 직접 로드합니다.
+
+macOS에서는 `brew install clang-tidy shellcheck json-c pkgconf python@3.13`,
+Ubuntu 24.04에서는 `sudo apt-get install -y clang clang-tidy shellcheck libjson-c-dev pkg-config`를
+실행한 뒤, Node.js 22 이상과 Python 3.11 이상 환경에서 다음 명령을 사용하세요.
+
+```sh
+python3 -m pip install 'ruff==0.14.5' 'yamllint==1.37.1'
+npm install --ignore-scripts --no-audit --no-fund
+sh tools/lint.sh
+```
+
+C(Clang/clang-tidy), JavaScript(ESLint), CSS(Stylelint), HTML(HTML-Validate),
+Python(Ruff), 셸(ShellCheck), GitHub Actions YAML(yamllint), SVG(XML parser)을 검사합니다.
+웹 소스만 검사할 때는 `npm run lint:web`을 사용하세요.
+CI의 lint 작업은 실패를 무시하지 않습니다.
+
+현재 npm 잠금 파일이 포함되지 않아 하위 의존성 버전은 설치 시 결정됩니다.
+최상위 개발 도구 버전은 정확히 고정했습니다. npm 레지스트리에 접근 가능한 환경에서
+`package-lock.json`을 생성·검토·커밋하면 재현성을 더 높일 수 있습니다.
+
+### 선택형 CGI 커버리지
+
+GCC/gcov를 설치한 개발 환경에서 `sh tools/coverage.sh`를 실행하면
+호스트 CGI 테스트를 실제 코드 커버리지 계측과 함께 실행합니다.
+생성된 gcov 파일은 임시 디렉터리에서만 사용한 후 삭제하며,
+실제 공유기 바이너리나 펌웨어에는 영향을 주지 않습니다.

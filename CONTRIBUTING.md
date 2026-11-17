@@ -15,6 +15,7 @@ Follow the [English development guide](docs/DEVELOPMENT.md) or [한국어 개발
 
 ```sh
 shellspec
+sh tools/lint.sh
 ```
 
 The `spec/contracts_spec.sh` descriptions remain in **Korean** per the project's test conventions; source comments and public technical documentation should be in English. Register every new test exactly once with ShellSpec and preserve the CI test-coverage guard.

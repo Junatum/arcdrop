@@ -16,3 +16,7 @@ web/build/
 *.orig
 *.rej
 /*.patch
+
+# Host lint caches
+.ruff_cache/
+.eslintcache

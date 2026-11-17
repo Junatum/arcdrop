@@ -1,87 +1,151 @@
 <!doctype html>
 <html lang="ko">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="color-scheme" content="dark light">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
-  <meta name="referrer" content="no-referrer">
-  <title>ArcDrop — 디자인 데모</title>
-  <link rel="icon" type="image/svg+xml" href="./icon.svg">
-  <link rel="stylesheet" href="./style.css">
-  <script src="./demo.js" defer></script>
-</head>
-<body>
-  <!-- Local, self-contained SVG symbols. No remote icons, images or scripts. -->
-  <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-    <symbol id="icon-laptop" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="13" rx="2"/><path d="M2 20h20"/></symbol>
-    <symbol id="icon-desktop" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M12 17v4m-6 0h12"/></symbol>
-    <symbol id="icon-phone" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></symbol>
-    <symbol id="icon-tablet" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M11 18h2"/></symbol>
-    <symbol id="icon-edit" viewBox="0 0 24 24"><path d="M12 20h9M16.5 4.5a2.12 2.12 0 0 1 3 3L9 18l-4 1 1-4Z"/></symbol>
-    <symbol id="icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></symbol>
-    <symbol id="icon-close" viewBox="0 0 24 24"><path d="m5 5 14 14M19 5 5 19"/></symbol>
-    <symbol id="icon-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
-    <symbol id="icon-file" viewBox="0 0 24 24"><path d="M5 3h9l5 5v13H5zM14 3v5h5"/></symbol>
-    <symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
-    <symbol id="icon-moon" viewBox="0 0 24 24"><path d="M14.5 3.5a8.5 8.5 0 1 0 6 14.5 7.5 7.5 0 1 1-6-14.5Z"/></symbol>
-  </svg>
-  <div class="shell">
-    <header class="top">
-      <div class="brand"><div class="brand-icon" aria-hidden="true"><img src="./icon.svg" alt="" width="41" height="41"></div><div><strong>ArcDrop</strong><small>by SmartSafeHub</small></div></div>
-      <nav class="top-actions" aria-label="화면 설정">
-        <span id="connection-status" class="connection-status"><span class="status-dot"></span><span id="connection-label">연결 중</span></span>
-        <button id="theme-toggle" class="icon-button theme-toggle" type="button" aria-label="테마 변경" title="테마 변경"><svg class="icon theme-sun"><use href="#icon-sun"/></svg><svg class="icon theme-moon"><use href="#icon-moon"/></svg></button>
-        <button id="help" class="icon-button" type="button" aria-label="ArcDrop 사용 안내" title="사용 안내"><svg class="icon"><use href="#icon-info"/></svg></button>
-      </nav>
-    </header>
-    <aside class="demo-toolbar" aria-label="디자인 미리보기 상태 선택">
-      <span class="demo-label">DESIGN PREVIEW · 실제 전송 없음</span>
-      <button type="button" data-demo="peers">주변 기기</button>
-      <button type="button" data-demo="empty">기기 없음</button>
-      <button type="button" data-demo="presence">기기 상태</button>
-      <button type="button" data-demo="incoming">수신 요청</button>
-      <button type="button" data-demo="transfer">전송 중</button>
-      <button type="button" data-demo="complete">전송 완료</button>
-      <button type="button" data-demo="error">연결 오류</button>
-    </aside>
-    <main>
-      <div id="notice" role="alert" class="notice hidden"><span id="notice-text"></span><button id="notice-dismiss" class="notice-dismiss" type="button" aria-label="알림 닫기"><svg class="icon"><use href="#icon-close"/></svg></button></div>
-      <section class="discovery" id="discovery" aria-label="내 기기와 주변 기기">
-        <div class="radar" aria-hidden="true"><svg class="sonar-wave wave-1" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="49" vector-effect="non-scaling-stroke"/></svg><svg class="sonar-wave wave-2" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="49" vector-effect="non-scaling-stroke"/></svg><svg class="sonar-wave wave-3" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="49" vector-effect="non-scaling-stroke"/></svg><svg class="sonar-wave wave-4" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="49" vector-effect="non-scaling-stroke"/></svg><svg class="sonar-wave wave-5" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="49" vector-effect="non-scaling-stroke"/></svg></div>
-        <div class="self-node">
-          <div class="self-orb"><svg class="icon" aria-hidden="true"><use href="#icon-laptop"/></svg></div>
-          <div class="self-identity"><span id="my-name">연결 중…</span><button id="rename" class="rename-button" type="button" aria-label="내 기기 설정" title="기기 이름·아이콘 설정"><svg class="icon"><use href="#icon-edit"/></svg></button></div>
-          <span class="self-subtitle">내 기기</span>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="dark light">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <meta name="referrer" content="no-referrer">
+    <title>ArcDrop — 디자인 데모</title>
+    <link rel="icon" type="image/svg+xml" href="./icon.svg">
+    <link rel="stylesheet" href="./style.css">
+    <script src="./demo.js" defer></script>
+  </head>
+  <body>
+    <!-- Local, self-contained SVG symbols. No remote icons, images or scripts. -->
+    <svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+      <symbol id="icon-laptop" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="13" rx="2"/><path d="M2 20h20"/></symbol>
+      <symbol id="icon-desktop" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M12 17v4m-6 0h12"/></symbol>
+      <symbol id="icon-phone" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></symbol>
+      <symbol id="icon-tablet" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M11 18h2"/></symbol>
+      <symbol id="icon-edit" viewBox="0 0 24 24"><path d="M12 20h9M16.5 4.5a2.12 2.12 0 0 1 3 3L9 18l-4 1 1-4Z"/></symbol>
+      <symbol id="icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></symbol>
+      <symbol id="icon-close" viewBox="0 0 24 24"><path d="m5 5 14 14M19 5 5 19"/></symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+      <symbol id="icon-file" viewBox="0 0 24 24"><path d="M5 3h9l5 5v13H5zM14 3v5h5"/></symbol>
+      <symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+      <symbol id="icon-moon" viewBox="0 0 24 24"><path d="M14.5 3.5a8.5 8.5 0 1 0 6 14.5 7.5 7.5 0 1 1-6-14.5Z"/></symbol>
+    </svg>
+    <div class="shell">
+      <header class="top">
+        <div class="brand">
+          <div class="brand-icon" aria-hidden="true">
+            <img src="./icon.svg" alt="" width="41" height="41">
+          </div>
+          <div>
+            <strong>ArcDrop</strong><small>by SmartSafeHub</small>
+          </div>
         </div>
-        <div id="devices" class="peers" aria-label="파일을 보낼 주변 기기"></div>
-        <div class="discovery-bottom"><p id="peer-count" class="peer-count" aria-live="polite">주변 기기 검색 중</p></div>
-      </section>
-      <input id="file-input" type="file" class="visually-hidden" aria-label="선택한 기기로 보낼 파일">
-      <p class="privacy-note"><svg class="icon" aria-hidden="true"><use href="#icon-check"/></svg> 같은 로컬 네트워크에서 기기 간 직접 전송 · 공유기에 파일을 저장하지 않습니다.</p>
-    </main>
-    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
-    <footer>ArcDrop 디자인 데모 · 실제 파일 전송 없음</footer>
-  </div>
-  <section id="incoming" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="incoming-title" aria-describedby="incoming-detail">
-    <div class="dialog-panel"><div class="dialog-symbol"><svg class="icon"><use href="#icon-file"/></svg></div><span class="dialog-eyebrow">파일 수신 요청</span><h2 id="incoming-title">파일을 받으시겠습니까?</h2><p id="incoming-detail" class="dialog-description"></p><div class="dialog-actions"><button id="accept" class="primary" type="button">파일 받기</button><button id="decline" class="secondary" type="button">거절</button></div></div>
-  </section>
-  <section id="transfer" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="transfer-title" aria-describedby="transfer-detail">
-    <div class="dialog-panel"><div class="dialog-symbol sending"><img src="./icon.svg" alt="" width="44" height="44"></div><span class="dialog-eyebrow">기기 간 직접 전송</span><h2 id="transfer-title">연결 준비 중</h2><div class="transfer-value" id="transfer-percent">0%</div><progress class="progress" aria-label="파일 전송 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="transfer-progress" max="100" value="0"></progress><p id="transfer-detail" class="dialog-description"></p><button id="cancel" class="secondary wide" type="button">전송 취소</button></div>
-  </section>
-  <section id="download" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="download-heading">
-    <div class="dialog-panel"><div class="dialog-symbol complete"><svg class="icon"><use href="#icon-check"/></svg></div><span class="dialog-eyebrow">전송 완료</span><h2 id="download-heading">파일을 받았습니다</h2><p id="download-title" class="dialog-description"></p><a id="download-link" class="button primary wide" href="#" download>파일 저장</a><button id="done" class="secondary wide" type="button">닫기</button><p class="dialog-footnote">받은 파일은 이 브라우저에만 있습니다. 다른 곳에 저장하려면 파일 저장을 누르세요.</p></div>
-  </section>
-  <section id="device-dialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="device-title">
-    <div class="dialog-panel"><div class="dialog-symbol"><svg class="icon"><use href="#icon-desktop"/></svg></div><h2 id="device-title">내 기기 설정</h2>
-      <label class="device-label" for="device-name">기기 이름</label><input id="device-name" class="device-field" type="text" maxlength="30" autocomplete="off" spellcheck="false">
-      <label class="device-label" for="device-type">기기 아이콘</label><select id="device-type" class="device-field"><option value="laptop">노트북</option><option value="desktop">데스크톱</option><option value="tablet">태블릿</option><option value="phone">스마트폰</option></select>
-      <p class="dialog-footnote">이름과 아이콘은 이 브라우저의 표시용 설정입니다.</p>
-      <div class="dialog-actions"><button id="device-save" class="primary" type="button">저장</button><button id="device-cancel" class="secondary" type="button">취소</button></div>
+        <nav class="top-actions" aria-label="화면 설정">
+          <span id="connection-status" class="connection-status"><span class="status-dot"></span><span id="connection-label">연결 중</span></span>
+          <button id="theme-toggle" class="icon-button theme-toggle" type="button" aria-label="테마 변경" title="테마 변경"><svg class="icon theme-sun"><use href="#icon-sun"/></svg>
+          <svg class="icon theme-moon"><use href="#icon-moon"/></svg></button>
+          <button id="help" class="icon-button" type="button" aria-label="ArcDrop 사용 안내" title="사용 안내"><svg class="icon"><use href="#icon-info"/></svg></button>
+        </nav>
+      </header>
+      <aside class="demo-toolbar" aria-label="디자인 미리보기 상태 선택"><span class="demo-label">DESIGN PREVIEW · 실제 전송 없음</span>
+          <button type="button" data-demo="peers">주변 기기</button>
+          <button type="button" data-demo="empty">기기 없음</button>
+          <button type="button" data-demo="presence">기기 상태</button>
+          <button type="button" data-demo="incoming">수신 요청</button>
+          <button type="button" data-demo="transfer">전송 중</button>
+          <button type="button" data-demo="complete">전송 완료</button>
+          <button type="button" data-demo="error">연결 오류</button></aside>
+      <main>
+        <div id="notice" role="alert" class="notice hidden">
+          <span id="notice-text"></span>
+          <button id="notice-dismiss" class="notice-dismiss" type="button" aria-label="알림 닫기"><svg class="icon"><use href="#icon-close"/></svg></button>
+        </div>
+        <section class="discovery" id="discovery" aria-label="내 기기와 주변 기기">
+          <div class="radar" aria-hidden="true">
+            <svg class="sonar-wave wave-1" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="49" vector-effect="non-scaling-stroke"/></svg>
+            <svg class="sonar-wave wave-2" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="49" vector-effect="non-scaling-stroke"/></svg>
+            <svg class="sonar-wave wave-3" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="49" vector-effect="non-scaling-stroke"/></svg>
+            <svg class="sonar-wave wave-4" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="49" vector-effect="non-scaling-stroke"/></svg>
+            <svg class="sonar-wave wave-5" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="49" vector-effect="non-scaling-stroke"/></svg>
+          </div>
+          <div class="self-node">
+            <div class="self-orb">
+              <svg class="icon" aria-hidden="true"><use href="#icon-laptop"/></svg>
+            </div>
+            <div class="self-identity">
+              <span id="my-name">연결 중…</span>
+          <button id="rename" class="rename-button" type="button" aria-label="내 기기 설정" title="기기 이름·아이콘 설정"><svg class="icon"><use href="#icon-edit"/></svg></button>
+            </div>
+            <span class="self-subtitle">내 기기</span>
+          </div>
+          <div id="devices" class="peers" aria-label="파일을 보낼 주변 기기">
+          </div>
+          <div class="discovery-bottom">
+            <p id="peer-count" class="peer-count" aria-live="polite">주변 기기 검색 중</p>
+          </div>
+        </section>
+        <input id="file-input" type="file" class="visually-hidden" aria-label="선택한 기기로 보낼 파일"><p class="privacy-note"><svg class="icon" aria-hidden="true"><use href="#icon-check"/></svg> 같은 로컬 네트워크에서 기기 간 직접 전송 · 공유기에 파일을 저장하지 않습니다.</p>
+      </main>
+      <div id="toast" class="toast hidden" role="status" aria-live="polite">
+      </div>
+      <footer>
+        ArcDrop 디자인 데모 · 실제 파일 전송 없음
+      </footer>
     </div>
-  </section>
-  <section id="help-dialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
-    <div class="dialog-panel"><div class="dialog-symbol"><svg class="icon"><use href="#icon-info"/></svg></div><h2 id="help-title">ArcDrop 사용 방법</h2><p class="dialog-description">같은 신뢰된 LAN에서 다른 기기의 ArcDrop을 엽니다. 주변 기기를 누른 후 파일을 선택하고, 상대방이 수락하면 직접 전송합니다.</p><p class="dialog-description">파일은 공유기를 경유하거나 공유기에 저장되지 않습니다. 최대 64 MiB 파일 1개를 전송할 수 있으며, 브라우저에서 신뢰하는 HTTPS 연결이 필요합니다.</p><button id="help-close" class="primary wide" type="button">확인</button></div>
-  </section>
-</body>
+    <section id="incoming" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="incoming-title" aria-describedby="incoming-detail">
+      <div class="dialog-panel">
+        <div class="dialog-symbol">
+          <svg class="icon"><use href="#icon-file"/></svg>
+        </div>
+        <span class="dialog-eyebrow">파일 수신 요청</span>
+          <h2 id="incoming-title">파일을 받으시겠습니까?</h2>
+          <p id="incoming-detail" class="dialog-description"></p>
+        <div class="dialog-actions">
+          <button id="accept" class="primary" type="button">파일 받기</button>
+          <button id="decline" class="secondary" type="button">거절</button>
+        </div>
+      </div>
+    </section>
+    <section id="transfer" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="transfer-title" aria-describedby="transfer-detail">
+      <div class="dialog-panel">
+        <div class="dialog-symbol sending">
+          <img src="./icon.svg" alt="" width="44" height="44">
+        </div>
+        <span class="dialog-eyebrow">기기 간 직접 전송</span>
+          <h2 id="transfer-title">연결 준비 중</h2>
+        <div class="transfer-value" id="transfer-percent">
+          0%
+        </div>
+        <progress class="progress" aria-label="파일 전송 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="transfer-progress" max="100" value="0"></progress><p id="transfer-detail" class="dialog-description"></p><button id="cancel" class="secondary wide" type="button">전송 취소</button>
+      </div>
+    </section>
+    <section id="download" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="download-heading">
+      <div class="dialog-panel">
+        <div class="dialog-symbol complete">
+          <svg class="icon"><use href="#icon-check"/></svg>
+        </div>
+        <span class="dialog-eyebrow">전송 완료</span>
+          <h2 id="download-heading">파일을 받았습니다</h2>
+          <p id="download-title" class="dialog-description"></p><a id="download-link" class="button primary wide" href="#" download>파일 저장</a><button id="done" class="secondary wide" type="button">닫기</button>
+          <p class="dialog-footnote">받은 파일은 이 브라우저에만 있습니다. 다른 곳에 저장하려면 파일 저장을 누르세요.</p>
+      </div>
+    </section>
+    <section id="device-dialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="device-title">
+      <div class="dialog-panel">
+        <div class="dialog-symbol">
+          <svg class="icon"><use href="#icon-desktop"/></svg>
+        </div>
+        <h2 id="device-title">내 기기 설정</h2><label class="device-label" for="device-name">기기 이름</label><input id="device-name" class="device-field" type="text" maxlength="30" autocomplete="off" spellcheck="false"><label class="device-label" for="device-type">기기 아이콘</label><select id="device-type" class="device-field"><option value="laptop">노트북</option><option value="desktop">데스크톱</option><option value="tablet">태블릿</option><option value="phone">스마트폰</option></select><p class="dialog-footnote">이름과 아이콘은 이 브라우저의 표시용 설정입니다.</p>
+        <div class="dialog-actions">
+          <button id="device-save" class="primary" type="button">저장</button>
+          <button id="device-cancel" class="secondary" type="button">취소</button>
+        </div>
+      </div>
+    </section>
+    <section id="help-dialog" class="dialog-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <div class="dialog-panel">
+        <div class="dialog-symbol">
+          <svg class="icon"><use href="#icon-info"/></svg>
+        </div>
+        <h2 id="help-title">ArcDrop 사용 방법</h2>
+          <p class="dialog-description">같은 신뢰된 LAN에서 다른 기기의 ArcDrop을 엽니다. 주변 기기를 누른 후 파일을 선택하고, 상대방이 수락하면 직접 전송합니다.</p><p class="dialog-description">파일은 공유기를 경유하거나 공유기에 저장되지 않습니다. 최대 64 MiB 파일 1개를 전송할 수 있으며, 브라우저에서 신뢰하는 HTTPS 연결이 필요합니다.</p><button id="help-close" class="primary wide" type="button">확인</button>
+      </div>
+    </section>
+  </body>
 </html>

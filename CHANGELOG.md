@@ -3,6 +3,22 @@
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
 
+## 0.1.0-r17 (2026-11-17)
+
+### Improved
+- Reformat the UI CSS and HTML to make visual styles and screen regions easier to maintain without changing the file-sharing protocol.
+- Keep lint tools in host-side development dependencies, not in OpenWrt firmware or browser bundles.
+
+### Added
+- Enforce C, JavaScript, CSS, HTML, Python, Shell, GitHub Actions YAML and SVG XML checks in an unconditional CI job.
+- Add lint configuration and contract checks for the lint workflow and formatted UI assets.
+
+### Tests
+- Make CSS/HTML visual regressions independent of insignificant formatting whitespace and verify readable stylesheet structure.
+- Retain CGI and WebRTC regression coverage after the source formatting change.
+- Add an optional GCC/gcov host runner for native CGI line and branch coverage.
+
+
 ## 0.1.0-r16 (2026-11-17)
 
 ### Improved

@@ -6,11 +6,21 @@ This checklist applies to the actual **SmartSafeHub OpenWrt router**. Automated 
 
 ```sh
 shellspec
+sh tools/lint.sh  # host-only, requires native/npm/Python lint tools
 node --test --test-reporter=tap tests/test_discovery.mjs
 python3 tests/test_e2e_portability.py
 ```
 
 On macOS install the native test prerequisites with `brew install json-c pkgconf`.
+
+## Optional host C coverage
+
+When GCC and gcov are installed, run `sh tools/coverage.sh` to compile the
+real CGI with coverage instrumentation, execute all host CGI regression cases,
+and print gcov line/branch summaries. The runner uses a temporary directory,
+removes coverage files afterward, and never changes the production binary or
+OpenWrt package. Coverage results depend on the host platform and cannot
+substitute for target-router performance tests.
 
 ## Optional desktop browser integration
 

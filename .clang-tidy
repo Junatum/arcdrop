@@ -1,0 +1,2 @@
+Checks: '-*,clang-analyzer-core.*,clang-analyzer-security.*,bugprone-suspicious-memory-comparison'
+WarningsAsErrors: '*'

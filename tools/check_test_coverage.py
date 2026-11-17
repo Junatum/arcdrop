@@ -108,6 +108,22 @@ def check_ci(root: Path) -> None:
     require('SHELLSPEC_VERSION: 0.28.1' in steps[shellspec_installs[0]],
             'ShellSpec 버전 고정 누락')
     require('tests/run.sh' not in workflow, '삭제된 tests/run.sh를 CI가 참조합니다')
+    lint_start = next((i for i, line in enumerate(lines)
+                       if JOB_HEADER.fullmatch(line) and
+                       JOB_HEADER.fullmatch(line).group(1) == 'lint'), None)
+    require(lint_start is not None, 'CI lint 작업 누락')
+    lint_end = next((i for i in range(lint_start + 1, len(lines))
+                     if JOB_HEADER.fullmatch(lines[i])), len(lines))
+    lint_job = '\n'.join(lines[lint_start:lint_end])
+    require(not re.search(r'^    (?:if|continue-on-error):', lint_job, re.MULTILINE),
+            'CI lint 작업은 조건부이거나 실패를 무시하면 안 됩니다')
+    lint_steps = re.split(r'(?=^      - name: )', lint_job, flags=re.MULTILINE)
+    lint_runs = [step for step in lint_steps
+                 if re.search(r'^      - name: Run all language linters\s*$', step, re.MULTILINE)]
+    require(len(lint_runs) == 1 and
+            re.search(r'^        run: sh tools/lint.sh\s*$', lint_runs[0], re.MULTILINE) and
+            not re.search(r'^        (?:if|continue-on-error):', lint_runs[0], re.MULTILINE),
+            'CI lint 실행 단계가 누락되거나 실패를 무시합니다')
 
 
 def check(root: Path) -> int:
@@ -144,6 +160,12 @@ def self_test() -> None:
           SHELLSPEC_VERSION: 0.28.1
       - name: Run ShellSpec contracts
         run: shellspec
+'''
+        original_ci += '''  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run all language linters
+        run: sh tools/lint.sh
 '''
         ci.write_text(original_ci, encoding='utf-8')
         require(check(root) == 1, '테스트 무결성 기본 fixture 실패')
@@ -215,6 +237,11 @@ def self_test() -> None:
             '        run: sh tests/test-suite-integrity.sh\n')
         ci.write_text(swapped, encoding='utf-8')
         must_fail('CI 사전 검증')
+        ci.write_text(original_ci.replace('run: sh tools/lint.sh', 'run: echo skipped'),
+                      encoding='utf-8')
+        must_fail('CI lint 실행 단계')
+        ci.write_text(original_ci.replace('  lint:', '  no-lint:'), encoding='utf-8')
+        must_fail('CI lint 작업 누락')
         ci.write_text(original_ci, encoding='utf-8')
         require(check(root) == 1, '변이 테스트 후 복구 실패')
 

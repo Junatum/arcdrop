@@ -114,9 +114,12 @@ DARWIN_EXTENSIONS_DISABLED
 class ArcDropCGITests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
+        # Coverage flags are opt-in and used only by the host-side gcov runner.
+        extra_flags = shlex.split(os.environ.get('ARCDROP_TEST_CFLAGS', ''))
         subprocess.run([
-            'cc', '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
-            '-DARCDROP_TEST', *[str(p) for p in sorted((ROOT / 'src').glob('*.c'))], '-o', str(BIN),
+            os.environ.get('ARCDROP_TEST_CC', 'cc'), '-std=c11', '-O2', '-Wall',
+            '-Wextra', '-Werror', '-DARCDROP_TEST', *extra_flags,
+            *[str(p) for p in sorted((ROOT / 'src').glob('*.c'))], '-o', str(BIN),
             *json_c_build_flags(),
         ], check=True)
 

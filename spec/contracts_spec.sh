@@ -74,6 +74,21 @@ Describe 'ArcDrop ShellSpec 계약 테스트'
     The error should be blank
   End
 
+  It 'CSS·HTML 가독성과 시각 동작의 기본 계약을 검증한다'
+    When run command node --test --test-reporter=tap "$SHELLSPEC_PROJECT_ROOT/tests/test_web_format.mjs"
+    The status should be success
+    The output should include '# pass '
+    The output should include '# fail 0'
+    The error should be blank
+  End
+
+  It '각 언어 lint 도구와 CI 필수 검사를 확인한다'
+    When run command sh "$SHELLSPEC_PROJECT_ROOT/tests/test-lint-contract.sh"
+    The status should be success
+    The output should start with 'PASS:'
+    The error should be blank
+  End
+
   It 'CHANGELOG 최신 버전과 릴리스 블록 사이 빈 줄 하나를 확인한다'
     When run command sh "$SHELLSPEC_PROJECT_ROOT/tests/test-changelog-spacing.sh"
     The status should be success

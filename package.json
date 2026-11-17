@@ -1,0 +1,16 @@
+{
+  "name": "arcdrop-quality-tools",
+  "private": true,
+  "description": "Host-only lint tools; never installed on an OpenWrt router",
+  "scripts": {
+    "lint:js": "eslint 'web/**/*.js' 'tests/**/*.mjs' 'tools/**/*.mjs'",
+    "lint:css": "stylelint 'web/**/*.css'",
+    "lint:html": "html-validate web/index.html web/demo.html",
+    "lint:web": "npm run lint:js && npm run lint:css && npm run lint:html"
+  },
+  "devDependencies": {
+    "eslint": "9.39.1",
+    "html-validate": "10.4.0",
+    "stylelint": "16.26.0"
+  }
+}

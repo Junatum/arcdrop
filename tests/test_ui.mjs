@@ -5,12 +5,13 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import vm from 'node:vm';
 import { browserTestSource } from '../tools/browser_vm.mjs';
+import { compactCss } from '../tools/css_fixture.mjs';
 const root = resolve(import.meta.dirname, '..');
 const read = (name) => readFileSync(resolve(root, name), 'utf8');
 const app = browserTestSource(root);
-const css = read('web/style.css');
-const html = read('web/index.html');
-const demo = read('web/demo.html');
+const css = compactCss(read('web/style.css'));
+const html = read('web/index.html').replace(/>\s+</g, '><');
+const demo = read('web/demo.html').replace(/>\s+</g, '><');
 const demoJs = read('web/demo.js');
 const iconSvg = read('web/icon.svg');
 

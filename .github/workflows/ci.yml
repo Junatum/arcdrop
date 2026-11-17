@@ -44,3 +44,31 @@ jobs:
 
       - name: Run ShellSpec contracts
         run: shellspec
+
+  lint:
+    name: ArcDrop language lint (C, JS, CSS, HTML, Python, Shell, YAML, SVG)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install native lint dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang clang-tidy libjson-c-dev pkg-config shellcheck
+
+      - name: Install pinned host lint tools
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          python3 -m pip install 'ruff==0.14.5' 'yamllint==1.37.1'
+
+      - name: Run all language linters
+        run: sh tools/lint.sh

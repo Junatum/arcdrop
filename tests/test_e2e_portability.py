@@ -8,7 +8,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / 'e2e/browser_e2e.py').read_text(encoding='utf-8')

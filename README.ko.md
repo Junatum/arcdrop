@@ -5,7 +5,7 @@
 **ArcDrop — by SmartSafeHub**는 OpenWrt 공유기에서 동작하는 경량 LAN 전용 P2P 파일 공유 앱입니다.
 
 - **라이선스:** GPL-3.0-or-later. PairDrop의 코드 및 리소스를 사용하지 않은 독립 구현입니다.
-- **패키지:** `smartsafehub-app-arcdrop` (`0.1.0-r16`).
+- **패키지:** `smartsafehub-app-arcdrop` (`0.1.0-r17`).
 - **전송:** 브라우저 간 암호화된 WebRTC `RTCDataChannel`. `iceServers: []`로 외부 STUN/TURN 서버를 사용하지 않습니다.
 - **파일 미저장:** 공유기는 정적 UI와 기기 검색·SDP/ICE 시그널링만 처리합니다. 파일 본문은 공유기나 클라우드에 전송하거나 저장하지 않습니다.
 - **임시 정보:** 기기 이름, IP, 토큰, SDP/ICE 메시지 등의 메타데이터는 `/tmp/arcdrop`에 임시 저장되며, 비활성 세션은 45초 후 만료됩니다.
@@ -55,6 +55,10 @@ python3 -m http.server 8080 --bind 127.0.0.1
 ```sh
 shellspec
 ```
+
+다중 언어 lint는 필요한 개발 도구를 설치한 뒤 `sh tools/lint.sh`로 실행합니다.
+선택형 CGI 커버리지 확인은 GCC/gcov를 준비하고 `sh tools/coverage.sh`를 실행하세요.
+자세한 내용은 [개발 가이드](docs/ko/DEVELOPMENT.md)에 있습니다.
 
 Jarbis와 같은 구조의 `.shellspec`, `spec/contracts_spec.sh`를 사용하며 **테스트 설명은 한국어로 유지**합니다. Python, Node.js, ShellSpec 0.28.1, C 컴파일러와 json-c 개발 헤더가 필요합니다. macOS에서는 다음으로 의존성을 준비할 수 있습니다.
 

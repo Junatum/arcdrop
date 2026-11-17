@@ -2,7 +2,7 @@
 
 **Languages:** [English](DEVELOPMENT.md) | [한국어](ko/DEVELOPMENT.md)
 
-This guide describes ArcDrop **0.1.0-r16** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
+This guide describes ArcDrop **0.1.0-r17** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
 
 ## 1. Overview
 
@@ -188,7 +188,7 @@ The browser sends optional `visible` and `busy` boolean hints with its regular `
 
 Run `shellspec` after edits. The CGI presence tests and Node discovery tests cover stale and legacy states, timer selection, and mobile resumption. The design preview uses simulated peers and must not be used to claim that live presence works.
 
-## Browser module refactor (0.1.0-r16)
+## Browser module refactor (0.1.0-r17)
 
 The production page loads native ESM `web/app.js` with `type="module"` and
 relative imports of `web/js/{core,api,ui,discovery,transfer,signaling,session}.js`.
@@ -198,3 +198,49 @@ demo is never packaged. Unit tests keep existing DOM/CGI regression cases,
 while `tests/test_frontend.mjs` also links and initializes the real ES module
 graph, checking for missing imports or startup errors. Optional Playwright
 E2E tests can verify actual browser transfers.
+
+## Language-specific lint (0.1.0-r17)
+
+Linting runs on the **development host and GitHub Actions only**, not on the router.
+The browser still loads plain JavaScript ES modules without a bundler. Source
+files in `web/` are installed directly by the OpenWrt package.
+
+Before running the lint suite, install the host tools:
+
+```sh
+# macOS (Homebrew)
+brew install clang-tidy shellcheck json-c pkgconf python@3.13
+
+# Ubuntu 24.04
+sudo apt-get update
+sudo apt-get install -y clang clang-tidy shellcheck libjson-c-dev pkg-config
+
+# On either host: Python 3.11+ and Node.js 22+ / npm
+python3 -m pip install 'ruff==0.14.5' 'yamllint==1.37.1'
+npm install --ignore-scripts --no-audit --no-fund
+sh tools/lint.sh
+```
+
+Linters: Clang/clang-tidy (C), ESLint (JavaScript), Stylelint (CSS),
+HTML-Validate (HTML), Ruff (Python), ShellCheck (POSIX shell) and yamllint
+(GitHub Actions YAML), XML validation for the bundled SVG. `npm run lint:web` runs just browser-source linters. Do not commit
+`node_modules/`, browser build output, or lint cache files. The lint command
+fails if a required tool is missing; CI runs it as a **separate unconditional job**.
+
+Note: `npm install` currently resolves transitive versions at installation
+time because no npm lockfile is bundled with this source-only patch. The
+three direct development dependencies are fixed to exact versions. If your
+local environment permits package registry access, generate and commit a
+reviewed `package-lock.json` for fully reproducible npm installs.
+
+### Optional CGI coverage
+
+For line and branch summaries on a Linux or macOS host with GCC and gcov:
+
+```sh
+sh tools/coverage.sh
+```
+
+The script builds an instrumented **host-test** executable, runs the CGI
+regression tests and removes temporary `.gcda`/`.gcov` files. It does not
+change the OpenWrt package or collect coverage from a production device.

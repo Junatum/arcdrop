@@ -5,7 +5,7 @@
 **ArcDrop — by SmartSafeHub**. Lightweight, open-source, LAN-only peer-to-peer file sharing for OpenWrt.
 
 - License: **GPL-3.0-or-later**; independent implementation, no PairDrop code or assets reused.
-- Package: `smartsafehub-app-arcdrop` (`0.1.0-r16`).
+- Package: `smartsafehub-app-arcdrop` (`0.1.0-r17`).
 - Sender/receiver browsers transfer file bytes via encrypted **WebRTC RTCDataChannel**, with `iceServers: []` (no external STUN/TURN).
 - The router only serves a small local UI and passes bounded discovery/SDP/ICE metadata; **no file bytes are sent to or stored on the router**, cloud or local disk.
 - The signaling metadata (device name, IP, session token, SDP/ICE messages) temporarily resides in `/tmp/arcdrop` (tmpfs). Session metadata expires after 45 seconds of inactivity.
@@ -55,6 +55,10 @@ The normal `index.html` page can also be opened locally to inspect its layout, b
 ```sh
 shellspec
 ```
+
+For host-only multi-language lint after installing the documented prerequisites,
+run `sh tools/lint.sh`. To measure the native CGI with GCC/gcov, run
+`sh tools/coverage.sh` (optional). See [development](docs/DEVELOPMENT.md).
 
 As in Jarbis, `.shellspec` and `spec/contracts_spec.sh` run Korean-language contracts. CI first executes `sh tests/test-suite-integrity.sh` and `sh tests/test-openwrt-commands.sh` to catch missing tests and BusyBox violations. The tests compile a host **test-only** CGI binary, run the existing Python and Node.js tests, and check packaging, JavaScript syntax, and CHANGELOG formatting. No frontend build files are produced. Requires ShellSpec 0.28.1, Python 3, Node.js, a C compiler, and json-c development headers.
 

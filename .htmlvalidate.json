@@ -1,0 +1,23 @@
+{
+  "extends": [],
+  "elements": [
+    "html5"
+  ],
+  "rules": {
+    "doctype-html5": "error",
+    "attr-quotes": [
+      "error",
+      {
+        "style": "double"
+      }
+    ],
+    "no-dup-attr": "error",
+    "no-implicit-close": "error",
+    "void-style": [
+      "error",
+      {
+        "style": "omitted"
+      }
+    ]
+  }
+}
