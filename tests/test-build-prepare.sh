@@ -69,6 +69,8 @@ require('define Build/Prepare\n\tmkdir -p $(PKG_BUILD_DIR)' in source,
         '빌드 준비 시 정의되지 않은 MKDIR 대신 mkdir -p를 사용해야 합니다')
 require('$(MKDIR)' not in source,
         'OpenWrt에서 보장되지 않는 MKDIR 변수를 사용하지 않아야 합니다')
+require('-D_FORTIFY_SOURCE=' not in source,
+        'OpenWrt 툴체인의 FORTIFY_SOURCE를 패키지에서 재정의하면 안 됩니다')
 make = shutil.which('make') or shutil.which('gmake')
 require(make is not None, 'GNU Make가 필요합니다')
 with tempfile.TemporaryDirectory(prefix='arc-prepare-') as d:
@@ -123,8 +125,12 @@ with tempfile.TemporaryDirectory(prefix='arc-prepare-') as d:
             'OpenWrt Build/Compile이 호스트 json-c 경로 옵션을 전달하지 않습니다: '
             + dry_run.stdout + dry_run.stderr)
 
+    # Emulate OpenWrt's toolchain-supplied FORTIFY level. A package-level
+    # -D_FORTIFY_SOURCE=2 would redefine this and fail with -Werror.
+    # This also builds all seven C files with their normal system headers.
     compile_result = subprocess.run(
-        make_command(root / 'Makefile', build, 'test-compile'),
+        make_command(root / 'Makefile', build, 'test-compile',
+                     cflags=[*host_cflags, '-D_FORTIFY_SOURCE=1', '-Werror']),
         cwd=root, capture_output=True, text=True, check=False,
     )
     require(compile_result.returncode == 0,

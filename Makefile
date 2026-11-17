@@ -40,7 +40,7 @@ endef
 
 define Build/Compile
 	$(TARGET_CC) $(TARGET_CFLAGS) -std=c11 -Wall -Wextra -Os \
-		-D_FORTIFY_SOURCE=2 -fstack-protector-strong \
+		-fstack-protector-strong \
 		-o $(PKG_BUILD_DIR)/arcdrop $(addprefix $(PKG_BUILD_DIR)/,$(ARCDROP_SOURCES)) \
 		$(TARGET_LDFLAGS) -ljson-c
 endef

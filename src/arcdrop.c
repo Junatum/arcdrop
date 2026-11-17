@@ -2,6 +2,7 @@
 /* CGI entry point: HTTP preconditions, action routing, and request lock. */
 #include "arcdrop.h"
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

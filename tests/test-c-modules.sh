@@ -32,6 +32,8 @@ require(header.index('#define _POSIX_C_SOURCE 200809L') < header.index('#include
 require('typedef struct {' in header and 'ArcContext;' in header and 'lock_fd;' in header,
         '요청별 상태 컨텍스트가 누락되었습니다')
 entry = (src / 'arcdrop.c').read_text(encoding='utf-8')
+require(re.search(r'^#include\s*<fcntl\.h>$', entry, re.M),
+        'OpenWrt musl의 open/O_* 플래그는 fcntl.h를 명시적으로 포함해야 합니다')
 require('ArcContext context = {' in entry and 'handle(app, query + 7, req)' in entry,
         'CGI 진입점에서 요청별 컨텍스트를 전달해야 합니다')
 require('static const char *state_dir =' not in entry and 'static time_t now_time;' not in entry,
