@@ -37,6 +37,10 @@ require('F' in pyproject['tool']['ruff']['lint']['select'], 'Ruff 미사용 변�
 for file in ('.stylelintrc.json', '.htmlvalidate.json'):
     require(json.loads((root / file).read_text())['rules'], f'검사 규칙 누락: {file}')
 
+html_rules = json.loads((root / '.htmlvalidate.json').read_text())['rules']
+require(html_rules.get('void-style') == ['error', {'style': 'omit'}],
+        'HTML-Validate void-style 규칙은 유효한 omit 값 사용')
+
 runner = (root / 'tools/lint.sh').read_text()
 for tool in ('npm run lint:web', 'ruff check', 'shellcheck ', 'clang -std=c11',
              'clang-tidy ', 'yamllint ', 'python3 tools/check_svg.py'):

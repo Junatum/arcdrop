@@ -16,7 +16,7 @@
     "void-style": [
       "error",
       {
-        "style": "omitted"
+        "style": "omit"
       }
     ]
   }
