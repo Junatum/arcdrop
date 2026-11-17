@@ -2,6 +2,18 @@
 
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
+## 0.1.0-r13 (2026-11-17)
+
+### Fixed
+- Mask the radar origin so the transient center crosshair no longer flashes around the local device in light theme.
+- Refined the theme-toggle icon styling and replaced the moon glyph with a clearer crescent for light mode.
+
+### Improved
+- Increased dark-theme radar-wave contrast and glow so outward discovery motion is easier to see.
+
+### Tests
+- Added UI regression checks for the radar center mask, theme-toggle polish, and dark/light wave styling.
+
 ## 0.1.0-r12 (2026-11-17)
 
 ### Fixed

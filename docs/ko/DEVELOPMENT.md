@@ -2,7 +2,7 @@
 
 **언어:** [English](../DEVELOPMENT.md) | [한국어](DEVELOPMENT.md)
 
-> 기준 소스: ArcDrop `0.1.0-r12`. 2026-11-17.
+> 기준 소스: ArcDrop `0.1.0-r13`. 2026-11-17.
 >
 > 개발·테스트·디자인 미리보기를 위한 문서입니다. **정적 UI 미리보기와 실제 WebRTC 전송 테스트는 별개**입니다.
 
@@ -243,6 +243,6 @@ Offer/Answer를 전송하기 전 로컬 ICE 후보 수집을 최대 10초간 기
 
 코드 변경 후 `shellspec`을 실행합니다. CGI 및 Node 테스트에는 상태 전환, 구버전 클라이언트, 응답 지연, 모바일 복귀 시나리오가 추가되었습니다.
 
-### 선택형 실브라우저 E2E 개선 (0.1.0-r12)
+### 선택형 실브라우저 E2E 개선 (0.1.0-r13)
 
 macOS Homebrew/LibreSSL과 Linux의 라이브러리 및 브라우저 실행 경로를 자동 탐색합니다. 양방향 전송·수신 거절·라우터 파일 본문 미저장을 선택형 테스트로 검증하도록 확장했습니다. Mac에서는 `brew install json-c pkgconf`, `python3 -m playwright install chromium` 실행 후 `python3 e2e/browser_e2e.py`를 사용하세요. 실제 iPadOS 브라우저 테스트와 공인 HTTPS 신뢰, SmartSafeHub Apps 카탈로그 통합은 아직 필요합니다. 상세 검증은 [VALIDATION.md](../VALIDATION.md)를 참조하세요.

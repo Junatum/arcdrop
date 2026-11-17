@@ -17,11 +17,13 @@ test('중앙 기기에서 5개의 파동이 더 넓게 확산되고 모션 감�
   assert.match(html, /class="self-node"/);
   assert.deepEqual([...html.matchAll(/class="sonar-wave wave-(\d)"/g)].map((m) => Number(m[1])), [1, 2, 3, 4, 5]);
   assert.match(css, /@keyframes sonar/);
-  assert.match(css, /scale\(\.1\)/);
+  assert.match(css, /scale\(var\(--wave-start-scale\)\)/);
   assert.match(css, /scale\(1\.18\)/);
   assert.match(css, /animation:sonar 7s linear infinite/);
-  assert.match(css, /\.sonar-wave\{width:760px;height:760px/);
-  assert.match(css, /\.sonar-wave\{width:520px;height:520px\}/);
+  assert.match(css, /--wave-peak-opacity:\.52/);
+  assert.match(css, /:root\[data-theme=\"light\"\]\{[^}]*--wave-peak-opacity:\.39/);
+  assert.match(css, /\.discovery\{--radar-center-y:45%;--self-orb-size:88px;--wave-size:760px;--wave-start-scale:\.1395/);
+  assert.match(css, /\.sonar-wave\{width:var\(--wave-size\);height:var\(--wave-size\)/);
   for (const [wave, delay] of [[2, 1.4], [3, 2.8], [4, 4.2], [5, 5.6]]) {
     assert.ok(css.includes(`.wave-${wave}{animation-delay:-${delay}s}`));
   }
@@ -39,13 +41,92 @@ test('헤더는 전체 화면 너비를 사용하고 콘텐츠는 가운데에 �
   assert.doesNotMatch(css, /\.shell\{max-width:1120px/);
 });
 test('중앙 파동과 실제 내 기기 아이콘의 중심은 데스크톱·모바일·다수 기기에서 같다', () => {
-  assert.match(css, /\.discovery\{--radar-center-y:45%;--self-orb-size:88px/);
+  assert.match(css, /\.discovery\{--radar-center-y:45%;--self-orb-size:88px;--wave-size:760px;--wave-start-scale:\.1395/);
   assert.match(css, /\.sonar-wave\{[^}]*top:var\(--radar-center-y\)/);
   assert.match(css, /\.self-node\{[^}]*top:var\(--radar-center-y\);transform:translate\(-50%,calc\(var\(--self-orb-size\) \/ -2\)\)/);
   assert.match(css, /\.self-orb\{width:var\(--self-orb-size\);height:var\(--self-orb-size\)/);
   assert.match(css, /\.discovery\[data-density="many"\]\{min-height:620px;--radar-center-y:32%\}/);
   assert.doesNotMatch(css, /\.discovery\[data-density="many"\] \.radar\{bottom:180px\}/);
-  assert.match(css, /@media\(max-width:700px\)\{[^\n]*--radar-center-y:29%;--self-orb-size:74px/);
+  assert.match(css, /@media\(max-width:700px\)\{[^\n]*--radar-center-y:29%;--self-orb-size:74px;--wave-size:520px;--wave-start-scale:\.177/);
+  assert.doesNotMatch(css, /\.radar::after|--radar-mask-size/);
+  assert.match(css, /@keyframes sonar\{0%\{transform:translate\(-50%,-50%\) scale\(var\(--wave-start-scale\)\);opacity:var\(--wave-start-opacity\)\}/);
+});
+
+// The starting border must touch the visible self-device halo, not a masked
+// ring that only becomes visible when it has already moved away from the orb.
+test('5개 파동은 중앙 기기 외곽선에서 시작하며 데스크톱과 모바일의 시작 반경이 일치한다', () => {
+  const desktop = {orb: 88, wave: 760, start: .1395};
+  const mobile = {orb: 74, wave: 520, start: .177};
+  for (const size of [desktop, mobile]) {
+    const firstRingRadius = size.wave * size.start / 2;
+    const outsideOrbHalo = size.orb / 2 + 9;
+    assert.ok(Math.abs(firstRingRadius - outsideOrbHalo) < .15,
+      `파동 시작 반경 ${firstRingRadius}와 기기 외곽 ${outsideOrbHalo}가 일치해야 함`);
+  }
+  assert.doesNotMatch(css, /\.radar::after|--radar-mask-size/,
+    '중앙 마스크 때문에 최초 파동이 기기와 떨어져 보이면 안 됨');
+  assert.match(css, /opacity:var\(--wave-start-opacity\)/,
+    '파동 시작 지점부터 보이도록 초기 투명도를 설정해야 함');
+  for (const markup of [html, demo]) {
+    assert.equal((markup.match(/class="sonar-wave wave-[1-5]"/g) || []).length, 5);
+  }
+  assert.deepEqual([...css.matchAll(/\.wave-([2-5])\{animation-delay:-([\d.]+)s\}/g)].map(m => [Number(m[1]), Number(m[2])]),
+    [[2, 1.4], [3, 2.8], [4, 4.2], [5, 5.6]]);
+  assert.match(css, /--wave-tail-opacity:\.17/);
+  assert.match(css, /--wave-tail-opacity:\.10/);
+  assert.match(css, /94%\{opacity:var\(--wave-tail-opacity\)\}/);
+  // Five rings are phase-shifted by 20% of the animation cycle. None of the
+  // foreground snapshots should collapse to only three perceptible rings.
+  const stops = [[0, .18], [12, .39], [72, .23], [94, .10], [100, 0]];
+  const opacity = (phase) => {
+    for (let i = 1; i < stops.length; i++) {
+      if (phase <= stops[i][0]) {
+        const [start, a] = stops[i - 1];
+        const [end, b] = stops[i];
+        return a + (b - a) * (phase - start) / (end - start);
+      }
+    }
+    return 0;
+  };
+  for (let frame = 0; frame < 100; frame += 5) {
+    const visible = [0, 20, 40, 60, 80]
+      .filter(offset => opacity((frame + offset) % 100) >= .09).length;
+    assert.ok(visible >= 4, `${frame}% 시점에서 파동 ${visible}개만 보임`);
+  }
+});
+
+test('테마 전환 버튼은 라이트 모드에서도 선명한 아이콘과 전용 버튼 스타일을 유지한다', () => {
+  for (const markup of [html, demo]) {
+    assert.match(markup, /<symbol id="icon-moon" viewBox="0 0 24 24"><path d="M14\.5 3\.5a8\.5 8\.5 0 1 0 6 14\.5 7\.5 7\.5 0 1 1-6-14\.5Z"\/>/);
+    assert.match(markup, /id="theme-toggle" class="icon-button theme-toggle"/);
+  }
+  assert.match(css, /\.theme-toggle\{border-color:var\(--line\);background:color-mix/);
+  assert.match(css, /\.theme-toggle \.icon\{width:20px;height:20px/);
+});
+
+// Firefox and WebKit may briefly rasterize the rectangular inset-shadow layer
+// of a scaled CSS circle as a + shaped seam. SVG circle strokes have no such
+// rectangular shadow layer; preserve the five phase offsets and edge origin.
+test('파동의 사각형 그림자 레이어를 제거하고 순수 SVG 원형 선으로 그린다', () => {
+  for (const markup of [html, demo]) {
+    const waves = [...markup.matchAll(/<svg class="sonar-wave wave-(\d)" viewBox="0 0 100 100" aria-hidden="true" focusable="false"><circle cx="50" cy="50" r="49" vector-effect="non-scaling-stroke"\/><\/svg>/g)];
+    assert.deepEqual(waves.map((w) => Number(w[1])), [1, 2, 3, 4, 5], '모든 파동은 SVG 원형 벡터 선이어야 함');
+    assert.doesNotMatch(markup, /<div class="sonar-wave/);
+  }
+  const rule = css.match(/\.sonar-wave\{([^}]*)\}/)?.[1];
+  assert.ok(rule, '파동 CSS가 있어야 함');
+  assert.doesNotMatch(rule, /(?:box-shadow|border|border-radius|filter)\s*:/,
+    '사각형 요소의 inset 그림자 또는 둥근 모서리 레이어가 다시 생성되면 안 됨');
+  assert.match(css, /\.sonar-wave circle\{fill:none;stroke:var\(--wave-ring\);stroke-width:1\.8\}/);
+  assert.doesNotMatch(css, /--wave-glow|\.radar::after|--radar-mask-size/);
+  assert.match(css, /animation:sonar 7s linear infinite/);
+  const expected = { desktop: { size: 760, scale: .1395, orb: 88 }, mobile: { size: 520, scale: .177, orb: 74 } };
+  for (const [screen, {size, scale, orb}] of Object.entries(expected)) {
+    // r=49 of viewBox=100, plus half of the 1.8px non-scaling stroke.
+    const start = size * scale * .49 + .9;
+    const outerEdge = orb / 2 + 9;
+    assert.ok(Math.abs(start - outerEdge) < 1, `${screen}: 첫 원형 파동이 기기 후광 외곽에서 시작`);
+  }
 });
 
 test('고정 레이더 원은 없애고 중앙에서 확산되는 파동만 표시한다', () => {
@@ -56,6 +137,7 @@ test('고정 레이더 원은 없애고 중앙에서 확산되는 파동만 표�
   assert.doesNotMatch(css, /\.radar-ring|\.ring-[123]\s*\{/);
   assert.match(css, /\.sonar-wave\{[^}]*animation:sonar 7s linear infinite/);
   assert.match(css, /prefers-reduced-motion:reduce\)\{\.sonar-wave\{animation:none;opacity:0\}/);
+  assert.doesNotMatch(css, /radar-ring|ring-[123]/);
 });
 
 
