@@ -4,7 +4,8 @@
     "html5"
   ],
   "rules": {
-    "doctype-html5": "error",
+    "doctype-html": "error",
+    "missing-doctype": "error",
     "attr-quotes": [
       "error",
       {

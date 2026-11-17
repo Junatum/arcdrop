@@ -38,6 +38,17 @@ for file in ('.stylelintrc.json', '.htmlvalidate.json'):
     require(json.loads((root / file).read_text())['rules'], f'검사 규칙 누락: {file}')
 
 html_rules = json.loads((root / '.htmlvalidate.json').read_text())['rules']
+# 기존에 발생한 존재하지 않는 규칙명(doctype-html5) 회귀를 차단한다.
+html_supported_rules = {
+    'doctype-html', 'missing-doctype', 'attr-quotes',
+    'no-dup-attr', 'no-implicit-close', 'void-style',
+}
+require(set(html_rules) <= html_supported_rules,
+        'HTML-Validate가 지원하지 않는 규칙명 사용 금지')
+require(html_rules.get('doctype-html') == 'error',
+        'HTML5 doctype-html 규칙 등록 누락')
+require(html_rules.get('missing-doctype') == 'error',
+        'DOCTYPE 누락 검사 규칙 등록 누락')
 require(html_rules.get('void-style') == ['error', {'style': 'omit'}],
         'HTML-Validate void-style 규칙은 유효한 omit 값 사용')
 
