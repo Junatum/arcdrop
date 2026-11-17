@@ -3,7 +3,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=smartsafehub-app-arcdrop
 PKG_VERSION:=0.1.0
-PKG_RELEASE:=6
+PKG_RELEASE:=7
 PKG_LICENSE:=GPL-3.0-or-later
 PKG_LICENSE_FILES:=LICENSE
 PKG_MAINTAINER:=SmartSafeHub Contributors
@@ -29,7 +29,7 @@ define Package/smartsafehub-app-arcdrop/conffiles
 endef
 
 define Build/Prepare
-	$(MKDIR) $(PKG_BUILD_DIR)
+	mkdir -p $(PKG_BUILD_DIR)
 	$(CP) ./src/arcdrop.c $(PKG_BUILD_DIR)/arcdrop.c
 	$(CP) ./LICENSE $(PKG_BUILD_DIR)/LICENSE
 endef

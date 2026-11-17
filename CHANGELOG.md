@@ -2,6 +2,15 @@
 
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
+## 0.1.0-r7 (2026-11-17)
+
+### Fixed
+- Fixed OpenWrt package preparation failing with `Error 126` when an undefined `$(MKDIR)` expansion left the build directory path as a command.
+- Create the package build directory with portable `mkdir -p` before copying source and license files.
+
+### Tests
+- Added a real GNU Make preparation contract using stub OpenWrt includes, validating copied file contents and rejecting the broken `$(MKDIR)` recipe.
+
 ## 0.1.0-r6 (2026-11-17)
 
 ### Improved

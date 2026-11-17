@@ -2,7 +2,7 @@
 
 **Languages:** [English](DEVELOPMENT.md) | [한국어](ko/DEVELOPMENT.md)
 
-This guide describes ArcDrop **0.1.0-r6** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
+This guide describes ArcDrop **0.1.0-r7** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
 
 ## 1. Overview
 
@@ -88,6 +88,7 @@ node --test --test-reporter=tap tests/test_ui.mjs
 sh tests/test-js-syntax.sh
 sh tests/test-openwrt-commands.sh
 sh tests/test-package-contract.sh
+sh tests/test-build-prepare.sh
 sh tests/test-changelog-spacing.sh
 sh tests/test-docs-contract.sh
 sh tests/test-suite-integrity.sh

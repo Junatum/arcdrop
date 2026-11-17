@@ -45,6 +45,13 @@ Describe 'ArcDrop ShellSpec 계약 테스트'
     The error should be blank
   End
 
+  It 'OpenWrt Build/Prepare가 빌드 디렉터리를 생성하고 소스와 라이선스를 복사한다'
+    When run command sh "$SHELLSPEC_PROJECT_ROOT/tests/test-build-prepare.sh"
+    The status should be success
+    The output should start with 'PASS:'
+    The error should be blank
+  End
+
   It 'CHANGELOG 최신 버전과 릴리스 블록 사이 빈 줄 하나를 확인한다'
     When run command sh "$SHELLSPEC_PROJECT_ROOT/tests/test-changelog-spacing.sh"
     The status should be success

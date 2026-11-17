@@ -2,7 +2,7 @@
 
 **언어:** [English](../DEVELOPMENT.md) | [한국어](DEVELOPMENT.md)
 
-> 기준 소스: ArcDrop `0.1.0-r6`. 2026-11-17.
+> 기준 소스: ArcDrop `0.1.0-r7`. 2026-11-17.
 >
 > 개발·테스트·디자인 미리보기를 위한 문서입니다. **정적 UI 미리보기와 실제 WebRTC 전송 테스트는 별개**입니다.
 
@@ -98,7 +98,7 @@ cd ~/Projects/arcdrop
 shellspec
 ```
 
-현재 `spec/contracts_spec.sh`의 9개 항목:
+현재 `spec/contracts_spec.sh`의 10개 항목:
 
 1. CGI HTTPS/LAN 제한, 세션 인증, 수신 승인, 파일 미저장
 2. 브라우저 WebRTC P2P/청크/외부 스크립트 차단
@@ -106,9 +106,10 @@ shellspec
 4. JavaScript 문법
 5. OpenWrt 25.12 BusyBox 명령 호환성
 6. 패키지 설치 경로/의존성/미저장 정책
-7. CHANGELOG 버전과 릴리스 사이 빈 줄 하나
-8. 문서 언어와 내부 링크 검증
-9. 신규 테스트 등록 및 CI 실행 누락 방지
+7. OpenWrt Makefile의 Build/Prepare 실행과 소스 복사 검증
+8. CHANGELOG 버전과 릴리스 사이 빈 줄 하나
+9. 문서 언어와 내부 링크 검증
+10. 신규 테스트 등록 및 CI 실행 누락 방지
 
 개별 검증도 가능합니다.
 
@@ -119,6 +120,7 @@ node --test --test-reporter=tap tests/test_ui.mjs
 sh tests/test-js-syntax.sh
 sh tests/test-openwrt-commands.sh
 sh tests/test-package-contract.sh
+sh tests/test-build-prepare.sh
 sh tests/test-changelog-spacing.sh
 sh tests/test-docs-contract.sh
 sh tests/test-suite-integrity.sh
