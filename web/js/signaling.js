@@ -86,26 +86,47 @@ export async function makeOffer(t) {
   installChannel(t, channel);
   await pc.setLocalDescription(await pc.createOffer());
   const sdp = await localSdpWithCandidates(pc);
-  if (state.active === t) await signal(t.peerId, 'offer', { sdp });
+  if (state.active === t) await signal(t.peerId, 'offer', { sdp }, t.transferId);
+}
+
+/* A rejected local/remote SDP must not leave the transfer stuck in a
+   non-retryable phase. Disconnect failed negotiation without cancelling the
+   whole approved transfer until its bounded signaling retries are exhausted. */
+function resetNegotiation(t, phase) {
+  if (t.channel) {
+    t.channel.onerror = null;
+    t.channel.onopen = null;
+    t.channel.onmessage = null;
+    try { if (t.channel.readyState !== 'closed') t.channel.close(); } catch { /* already closed */ }
+    t.channel = null;
+  }
+  if (t.pc) {
+    t.pc.onconnectionstatechange = null;
+    t.pc.ondatachannel = null;
+    try { t.pc.close(); } catch { /* already closed */ }
+    t.pc = null;
+  }
+  t.phase = phase;
 }
 
 export async function handleSignal(message) {
-  const { from, kind, body } = message;
+  const { from, kind, body, transferId = null } = message;
   const t = state.active;
+  const matches = (current) => (current?.transferId || null) === transferId;
   if (kind === 'invite') {
     if (t || state.incoming || !Number.isSafeInteger(body?.size) || body.size < 0 || body.size > LIMIT ||
         typeof body?.name !== 'string' || body.name.length > 255) {
-      await signal(from, 'decline'); return;
+      await signal(from, 'decline', {}, transferId); return;
     }
     const sender = state.peers.find((x) => x.id === from)?.name || '다른 기기';
-    const incoming = { from, sender, body, timeout: null };
+    const incoming = { from, sender, body, transferId, timeout: null };
     state.incoming = incoming;
     incoming.timeout = setTimeout(() => {
       if (state.incoming !== incoming) return;
       clearIncoming();
       renderPeers();
       notice('파일 수신 요청이 만료되었습니다. 다시 요청해주세요.');
-      void signal(from, 'decline').catch(() => {});
+      void signal(from, 'decline', {}, transferId).catch(() => {});
     }, INVITE_RESPONSE_TIMEOUT_MS);
     wakePoll();
     $('incoming-title').textContent = `${sender}에서 파일을 보내려고 합니다.`;
@@ -115,24 +136,32 @@ export async function handleSignal(message) {
   }
   // A sender may cancel before the receiver accepts. Do not leave a stale
   // consent dialog visible until its 30s timeout.
-  if (kind === 'bye' && state.incoming?.from === from) {
+  if (kind === 'bye' && state.incoming?.from === from && matches(state.incoming)) {
     clearIncoming(); renderPeers(); notice('상대방이 전송 요청을 취소했습니다.'); return;
   }
-  if (kind === 'decline' && t?.peerId === from) { await cancelTransfer('상대방이 파일 전송을 거절했습니다.', false); return; }
-  if (kind === 'bye' && t?.peerId === from) { await cancelTransfer('상대방이 전송을 종료했습니다.', false); return; }
-  if (!t || t.peerId !== from) return;
+  if (kind === 'decline' && t?.peerId === from && matches(t)) { await cancelTransfer('상대방이 파일 전송을 거절했습니다.', false); return; }
+  if (kind === 'bye' && t?.peerId === from && matches(t)) { await cancelTransfer('상대방이 전송을 종료했습니다.', false); return; }
+  if (!t || t.peerId !== from || !matches(t)) return;
   if (kind === 'accept' && t.role === 'sender' && t.phase === 'awaiting-approval' && !t.pc) {
-    t.phase = 'negotiating'; armTimeout(t); await makeOffer(t); return;
+    t.phase = 'negotiating'; armTimeout(t);
+    try { await makeOffer(t); }
+    catch (err) { if (state.active === t) resetNegotiation(t, 'awaiting-approval'); throw err; }
+    return;
   }
   if (kind === 'offer' && t.role === 'receiver' && t.phase === 'awaiting-offer' &&
       !t.pc && body?.sdp?.type === 'offer') {
     t.phase = 'negotiating';
-    const pc = createConnection(t);
-    await pc.setRemoteDescription(body.sdp);
-    await addPendingCandidates(t);
-    await pc.setLocalDescription(await pc.createAnswer());
-    const sdp = await localSdpWithCandidates(pc);
-    if (state.active === t) await signal(t.peerId, 'answer', { sdp });
+    try {
+      const pc = createConnection(t);
+      await pc.setRemoteDescription(body.sdp);
+      await addPendingCandidates(t);
+      await pc.setLocalDescription(await pc.createAnswer());
+      const sdp = await localSdpWithCandidates(pc);
+      if (state.active === t) await signal(t.peerId, 'answer', { sdp }, t.transferId);
+    } catch (err) {
+      if (state.active === t) resetNegotiation(t, 'awaiting-offer');
+      throw err;
+    }
     return;
   }
   if (kind === 'answer' && t.role === 'sender' && t.phase === 'negotiating' &&

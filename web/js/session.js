@@ -2,7 +2,7 @@
 // ArcDrop browser session module.
 import { state, discoveryBusy, pollWait, wakePoll, DEVICE_TYPES } from './core.js';
 import { $, setConnectionStatus, displayProfile, notice } from './ui.js';
-import { api } from './api.js';
+import { api, newSignalId } from './api.js';
 import { refreshPeers } from './discovery.js';
 import { cancelTransfer } from './transfer.js';
 import { handleSignal } from './signaling.js';
@@ -22,8 +22,51 @@ export let connectPromise = null;
 // IDs stay in memory for this tab only. 128 entries bounds duplicate tracking.
 const seenSignals = new Set();
 let pendingAcks = [];
+const failedSignals = new Map();
+const MAX_SIGNAL_ATTEMPTS = 3;
+let ownerChannel = null;
+let pendingProbe = null;
 
-export function resetSignalTracking() { seenSignals.clear(); pendingAcks = []; }
+/* A duplicated browser tab may inherit sessionStorage. Keep the original
+   tab's token in place and register a separate peer in the copied tab. */
+function tabChannel() {
+  if (ownerChannel || typeof BroadcastChannel !== 'function') return ownerChannel;
+  try {
+    ownerChannel = new BroadcastChannel('arcdrop-session-owner');
+    ownerChannel.onmessage = (event) => {
+      const message = event.data;
+      if (!message || typeof message !== 'object') return;
+      if (message.type === 'probe' && state.running && state.session?.id === message.sessionId) {
+        ownerChannel.postMessage({ type: 'occupied', sessionId: message.sessionId, probeId: message.probeId });
+      } else if (message.type === 'occupied' && pendingProbe &&
+                 pendingProbe.sessionId === message.sessionId && pendingProbe.probeId === message.probeId) {
+        pendingProbe.occupied = true;
+      }
+    };
+  } catch { ownerChannel = null; /* BroadcastChannel can be blocked. */ }
+  return ownerChannel;
+}
+
+export async function avoidDuplicateTabSession() {
+  const channel = tabChannel();
+  if (!state.session || !channel || state.running) return;
+  const probeId = newSignalId();
+  if (!probeId) return;
+  const probe = { sessionId: state.session.id, probeId, occupied: false };
+  pendingProbe = probe;
+  try {
+    channel.postMessage({ type: 'probe', sessionId: probe.sessionId, probeId });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    if (probe.occupied && state.session?.id === probe.sessionId) {
+      state.session = null;
+      resetSignalTracking();
+      persistSession(null);
+    }
+  } finally { if (pendingProbe === probe) pendingProbe = null; }
+}
+
+
+export function resetSignalTracking() { seenSignals.clear(); pendingAcks = []; failedSignals.clear(); }
 
 export function acknowledgeSignal(id) {
   if (typeof id !== 'string' || !/^[0-9a-f]{24}$/.test(id)) return;
@@ -100,6 +143,7 @@ export async function ensureSession() {
     const profile = savedProfile();
     displayProfile(profile);
     if (!state.session) state.session = storedSession();
+    if (state.session) await avoidDuplicateTabSession();
     if (state.session) {
       try { await api('heartbeat'); }
       catch (err) {
@@ -111,9 +155,10 @@ export async function ensureSession() {
     }
     if (!state.session) {
       resetSignalTracking();
-      state.session = await api('register', profile);
+      state.session = await api('register', {...profile, protocolVersion: 2});
       persistSession(state.session);
     }
+    tabChannel();
     setConnectionStatus('online', '로컬 연결');
     notice('');
     await refreshPeers();
@@ -146,13 +191,28 @@ export async function loop(loopId) {
           acknowledgeSignal(message.id);
           continue;
         }
-        try { await handleSignal(message); }
-        catch (err) {
+        try {
+          await handleSignal(message);
+          if (message?.id) failedSignals.delete(message.id);
+          acknowledgeSignal(message?.id);
+        } catch (err) {
+          const id = message?.id;
+          const attempts = id ? (failedSignals.get(id) || 0) + 1 : MAX_SIGNAL_ATTEMPTS;
+          if (id) failedSignals.set(id, attempts);
           console.warn('ArcDrop: signaling message failed', message?.kind || 'unknown', err?.message || err);
+          if (attempts < MAX_SIGNAL_ATTEMPTS) {
+            // Do not acknowledge an unprocessed signal. The CGI will redeliver
+            // on the next poll, even if another message in this batch succeeded.
+            notice('연결 신호 처리에 실패했습니다. 다시 시도합니다.', true);
+            continue;
+          }
+          if (id) failedSignals.delete(id);
           if (state.active?.peerId === message?.from)
             await cancelTransfer(`연결 협상 실패: ${err?.message || '알 수 없는 오류'}`);
           else notice(`기기 연결 요청 처리 실패: ${err?.message || '알 수 없는 오류'}`, true);
-        } finally { acknowledgeSignal(message?.id); }
+          // Terminal error: avoid retrying an impossible message until TTL.
+          acknowledgeSignal(id);
+        }
       }
       if (failures) notice('');
       failures = 0;

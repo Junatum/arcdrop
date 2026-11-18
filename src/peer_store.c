@@ -13,8 +13,10 @@
 
 #define MAX_TRANSACTION_FILE (2 * MAX_PEER_FILE + 256)
 
-void path_for(ArcContext *app, const char *id, char *dst, size_t len) {
-    snprintf(dst, len, "%s/%s.json", app->state_dir, id);
+int path_for(ArcContext *app, const char *id, char *dst, size_t len) {
+    if (!is_hex(id, 24) || !dst || len == 0) return 0;
+    int n = snprintf(dst, len, "%s/%s.json", app->state_dir, id);
+    return n >= 0 && (size_t)n < len;
 }
 
 /* All state files must be private, ordinary files owned by the CGI user.
@@ -136,9 +138,45 @@ void walk_peers(ArcContext *app, PeerVisitor visit, void *user_data) {
         if (!is_hex(id, 24)) continue;
         J *p = load_peer(app, id);
         if (!p || !peer_alive(app, p)) {
-            char path[320]; path_for(app, id, path, sizeof(path)); unlink(path);
+            char path[320];
+            if (path_for(app, id, path, sizeof(path))) unlink(path);
         } else if (visit) visit(id, p, user_data);
         if (p) json_object_put(p);
+    }
+    closedir(dir);
+}
+
+
+/* Only expired, owned, ordinary temporary snapshots from our atomic writer.
+   Never follow links and never remove active writes or arbitrary tmpfs files. */
+static int stale_snapshot_name(const char *name) {
+    const char *suffix = NULL;
+    if (!strncmp(name, ".cleanup.tmp.", 13)) suffix = name + 13;
+    else if (!strncmp(name, ".transaction.tmp.", 17)) suffix = name + 17;
+    else if (strlen(name) > 34 && !strncmp(name + 24, ".json.tmp.", 10)) {
+        char id[25]; memcpy(id, name, 24); id[24] = '\0';
+        if (is_hex(id, 24)) suffix = name + 34;
+    }
+    if (!suffix || !*suffix) return 0;
+    for (const char *p = suffix; *p; p++) if (*p < '0' || *p > '9') return 0;
+    return 1;
+}
+
+static void cleanup_stale_snapshots(ArcContext *app) {
+    DIR *dir = opendir(app->state_dir);
+    if (!dir) return;
+    struct dirent *e;
+    time_t now = time(NULL); /* Filesystem mtime is real time, unlike injected test session time. */
+    while ((e = readdir(dir))) {
+        if (!stale_snapshot_name(e->d_name)) continue;
+        char path[416];
+        int len = snprintf(path, sizeof(path), "%s/%s", app->state_dir, e->d_name);
+        if (len < 0 || (size_t)len >= sizeof(path)) continue;
+        struct stat st;
+        if (lstat(path, &st) == 0 && S_ISREG(st.st_mode) &&
+            st.st_uid == geteuid() && st.st_nlink == 1 && (st.st_mode & 077) == 0 &&
+            st.st_mtime >= 0 && st.st_mtime <= now && now - st.st_mtime >= 120)
+            (void)unlink(path);
     }
     closedir(dir);
 }
@@ -158,6 +196,7 @@ int maybe_cleanup_peers(ArcContext *app) {
     }
     if (marker) json_object_put(marker);
     walk_peers(app, NULL, NULL);
+    cleanup_stale_snapshots(app);
     J *next = json_object_new_object();
     addint(next, "last", (int64_t)app->now_time);
     int ok = write_private_json(app, ".cleanup", next, 128);

@@ -77,6 +77,12 @@ class ArcDropE2EPortabilityTests(unittest.TestCase):
             self.assertTrue((ROOT / f'web/js/{name}.js').is_file())
         self.assertNotIn("'demo.js', 'style.css'", SOURCE)
 
+    def test_숨겨진_모달을_기다릴_때_가시성_대신_hidden_상태를_확인한다(self):
+        self.assertIn("sender.locator('#transfer').wait_for(state='hidden'", SOURCE)
+        self.assertIn("b.locator('#incoming').wait_for(state='hidden'", SOURCE)
+        self.assertNotIn("locator('#transfer.hidden').wait_for(", SOURCE)
+        self.assertNotIn("locator('#incoming.hidden').wait_for(", SOURCE)
+
     def test_실제_브라우저_테스트는_양방향과_거절_파일_미저장을_검증한다(self):
         self.assertIn('send(a, b,', SOURCE)
         self.assertIn('send(b, a,', SOURCE)

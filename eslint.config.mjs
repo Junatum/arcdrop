@@ -2,7 +2,7 @@
 // Host-side checks only. No ESLint code or dependencies ship with ArcDrop.
 const globals = Object.fromEntries([
   'window', 'document', 'navigator', 'location', 'localStorage',
-  'sessionStorage', 'fetch', 'Blob', 'File', 'URL', 'TextEncoder',
+  'sessionStorage', 'BroadcastChannel', 'fetch', 'Blob', 'File', 'URL', 'TextEncoder',
   'TextDecoder', 'RTCPeerConnection', 'RTCSessionDescription',
   'RTCIceCandidate', 'crypto', 'performance', 'console', 'setTimeout',
   'clearTimeout', 'setInterval', 'clearInterval', 'AbortController',

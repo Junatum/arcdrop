@@ -2,11 +2,20 @@
 // ArcDrop browser transfer module.
 import { state, LIMIT, CHUNK, sleep, sizeText, wakePoll } from './core.js';
 import { $, show, notice, progress } from './ui.js';
-import { signal } from './api.js';
+import { signal, newSignalId } from './api.js';
 import { renderPeers } from './discovery.js';
 
 export const UI_UPDATE_INTERVAL_MS = 100;
 export const RECEIVE_SEGMENT_BYTES = 1024 * 1024;
+// WebCrypto digest() requires a contiguous buffer. Keep its optional extra
+// allocation below 8 MiB to avoid memory spikes on iOS / older devices.
+export const INTEGRITY_MAX_BYTES = 8 * 1024 * 1024;
+
+async function smallFileDigest(file) {
+  if (file.size > INTEGRITY_MAX_BYTES || !globalThis.crypto?.subtle?.digest) return null;
+  const result = await globalThis.crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+  return Array.from(new Uint8Array(result), (x) => x.toString(16).padStart(2, '0')).join('');
+}
 
 export function transferProgress(t, title, current, total, details, force = false) {
   const now = Date.now();
@@ -56,10 +65,11 @@ export function resetTransfer() {
 
 export async function cancelTransfer(reason = '전송이 취소되었습니다.', notify = true) {
   const peer = state.active?.peerId || state.incoming?.from;
+  const transferId = state.active?.transferId || state.incoming?.transferId || null;
   resetTransfer();
   notice(reason, true);
   if (notify && peer && state.session) {
-    try { await signal(peer, 'bye', {}); } catch { /* peer already disconnected */ }
+    try { await signal(peer, 'bye', {}, transferId); } catch { /* peer already disconnected */ }
   }
 }
 // The server's directory iteration order is unstable. Preserve known order,
@@ -85,12 +95,12 @@ export async function beginInvite(peer, file) {
   if (!file) return;
   if (file.size > LIMIT) { notice('파일은 최대 64 MiB까지 전송할 수 있습니다.', true); return; }
   cleanDownload();
-  const active = { peerId: peer.id, peerName: peer.name, role: 'sender', file, pc: null, channel: null, candidates: [], received: [], parts: [], segmentBytes: 0, bytes: 0, timeout: null, phase: 'awaiting-approval' };
+  const active = { peerId: peer.id, peerName: peer.name, role: 'sender', file, pc: null, channel: null, candidates: [], received: [], parts: [], segmentBytes: 0, bytes: 0, timeout: null, phase: 'awaiting-approval', transferId: peer.protocolVersion === 2 ? newSignalId() : null };
   state.active = active;
   wakePoll();
   armTimeout(active); renderPeers();
   progress('승인 대기 중', 0, file.size, `${peer.name}에서 수신 승인을 기다립니다.`);
-  try { await signal(peer.id, 'invite', { name: file.name, size: file.size }); }
+  try { await signal(peer.id, 'invite', { name: file.name, size: file.size }, active.transferId); }
   catch (err) { if (state.active === active) await cancelTransfer(err.message, false); }
 }
 
@@ -99,19 +109,19 @@ export async function acceptIncoming() {
   if (!request || state.active) return;
   clearIncoming();
   const t = { peerId: request.from, peerName: request.sender, role: 'receiver',
-    offer: request.body, pc: null, channel: null, candidates: [], received: [], parts: [], segmentBytes: 0, bytes: 0, timeout: null, phase: 'awaiting-offer' };
+    offer: request.body, pc: null, channel: null, candidates: [], received: [], parts: [], segmentBytes: 0, bytes: 0, timeout: null, phase: 'awaiting-offer', transferId: request.transferId || null };
   state.active = t;
   wakePoll();
   armTimeout(t); renderPeers();
   progress('수신 준비 중', 0, t.offer.size, `${t.peerName}와 직접 연결합니다.`);
-  try { await signal(t.peerId, 'accept'); }
+  try { await signal(t.peerId, 'accept', {}, t.transferId); }
   catch (err) { await cancelTransfer(err.message, false); }
 }
 
 export async function declineIncoming() {
   const request = clearIncoming();
   renderPeers();
-  if (request) try { await signal(request.from, 'decline'); } catch { /* disconnected */ }
+  if (request) try { await signal(request.from, 'decline', {}, request.transferId); } catch { /* disconnected */ }
 }
 
 export function installChannel(t, channel) {
@@ -141,6 +151,8 @@ export async function sendFile(t) {
   const channel = t.channel;
   if (state.active !== t || channel.readyState !== 'open') throw Error('전송이 중단되었습니다.');
   t.phase = 'sending';
+  const sha256 = await smallFileDigest(t.file);
+  if (state.active !== t || channel.readyState !== 'open') throw Error('전송이 중단되었습니다.');
   channel.send(JSON.stringify({ type: 'meta', name: t.file.name, size: t.file.size }));
   for (let offset = 0; offset < t.file.size; offset += CHUNK) {
     if (state.active !== t || channel.readyState !== 'open') throw Error('전송이 중단되었습니다.');
@@ -156,9 +168,36 @@ export async function sendFile(t) {
   }
   if (state.active !== t || channel.readyState !== 'open') throw Error('전송이 중단되었습니다.');
   t.phase = 'awaiting-ack';
-  channel.send(JSON.stringify({ type: 'end' }));
+  channel.send(JSON.stringify(sha256 ? { type: 'end', sha256 } : { type: 'end' }));
   transferProgress(t, '저장 확인 대기', t.file.size, t.file.size, '수신 기기에서 전송 완료를 확인합니다.', true);
   armTimeout(t);
+}
+
+async function verifyAndComplete(t, blob, expected) {
+  const result = await globalThis.crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
+  const digest = Array.from(new Uint8Array(result), (x) => x.toString(16).padStart(2, '0')).join('');
+  if (digest !== expected) throw Error('파일 무결성 검사에 실패했습니다.');
+  if (state.active !== t) return;
+  completeReceive(t, blob);
+}
+
+function completeReceive(t, blob) {
+  if (state.active !== t) return;
+  t.phase = 'complete';
+  cleanDownload(); state.blobUrl = URL.createObjectURL(blob);
+  $('download-link').href = state.blobUrl;
+  $('download-link').download = t.offer.name;
+  $('download-title').textContent = `${t.offer.name} · ${sizeText(t.bytes)}`;
+  show('transfer', false);
+  show('download', true);
+  $('done').focus();
+  t.finished = true;
+  // The file is already verified. A peer that closes during the ACK
+  // handshake must not turn successful reception into a false error.
+  try { t.channel.send(JSON.stringify({ type: 'ack' })); }
+  catch { /* remote peer disconnected after the payload arrived */ }
+  notice('수신이 완료되었습니다. 파일 저장 버튼을 눌러주세요.');
+  setTimeout(() => { if (state.active === t) resetTransfer(); }, 800);
 }
 
 export function receiveMessage(t, data) {
@@ -170,24 +209,23 @@ export function receiveMessage(t, data) {
     }
     if (msg.type === 'end' && t.role === 'receiver' && t.phase === 'receiving' &&
         t.started && t.bytes === t.offer.size) {
+      const sha = msg.sha256;
+      if (sha !== undefined && (typeof sha !== 'string' || !/^[0-9a-f]{64}$/.test(sha)))
+        throw Error('잘못된 파일 검증 정보입니다.');
       flushReceiveSegment(t);
       const blob = new Blob(t.parts, { type: 'application/octet-stream' });
       t.parts = [];
-      t.phase = 'complete';
-      cleanDownload(); state.blobUrl = URL.createObjectURL(blob);
-      $('download-link').href = state.blobUrl;
-      $('download-link').download = t.offer.name;
-      $('download-title').textContent = `${t.offer.name} · ${sizeText(t.bytes)}`;
-      show('transfer', false);
-      show('download', true);
-      $('done').focus();
-      t.finished = true;
-      // The file is already complete. A peer that closes during the ACK
-      // handshake must not turn successful reception into a false error.
-      try { t.channel.send(JSON.stringify({ type: 'ack' })); }
-      catch { /* remote peer disconnected after the payload arrived */ }
-      notice('수신이 완료되었습니다. 파일 저장 버튼을 눌러주세요.');
-      setTimeout(() => { if (state.active === t) resetTransfer(); }, 800); return;
+      t.phase = 'verifying';
+      // Only announce success after verifying the optional small-file SHA-256.
+      if (sha) {
+        if (!globalThis.crypto?.subtle?.digest || blob.size > INTEGRITY_MAX_BYTES)
+          throw Error('파일 무결성 확인을 수행할 수 없습니다.');
+        armTimeout(t);
+        void verifyAndComplete(t, blob, sha).catch((err) => {
+          if (state.active === t) void cancelTransfer(err.message);
+        });
+      } else completeReceive(t, blob);
+      return;
     }
     if (msg.type === 'ack' && t.role === 'sender' && t.phase === 'awaiting-ack' &&
         t.bytes === t.file.size) {

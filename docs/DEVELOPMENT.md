@@ -2,7 +2,7 @@
 
 **Languages:** [English](DEVELOPMENT.md) | [한국어](ko/DEVELOPMENT.md)
 
-This guide describes ArcDrop **0.1.0-r19** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
+This guide describes ArcDrop **0.1.0-r20** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
 
 ## 1. Overview
 
@@ -283,3 +283,10 @@ figures.
 Run `python3 tests/test_cgi.py`, `node --test tests/*.mjs`, `shellspec`, and
 `sh tools/lint.sh` before publishing a new revision. Real two-browser WebRTC
 E2E, iOS Safari and OpenWrt target builds remain required before production.
+
+
+## 8–9. Scoped transfers, bounded retries and state-file hygiene (0.1.0-r20)
+
+The wire-compatible `signal` API may include a 24-hex `transferId` separate from its restricted `body`. Consent and queued messages are scoped to that ID. New clients advertise `protocolVersion: 2` on registration and scope transfers only to peers with that capability, so mixed-version pairs continue to use the existing unscoped legacy consent path. The polling client acknowledges a message only when it has been handled or conclusively abandoned after bounded attempts. Failed requests use AbortController; signaling retries preserve `requestId`.
+
+Browser sessions cloned by a duplicate tab are separated via BroadcastChannel when available. The receive data channel optionally validates SHA-256 for files up to 8 MiB, without a full-buffer digest for larger files. Stale atomic-write snapshots are removed only after 120 seconds from the private CGI state directory. See `docs/VALIDATION.md` for real-browser and router acceptance checks.

@@ -68,7 +68,7 @@ int allowed_address(ArcContext *app);
 int origin_ok(void);
 
 /* JSON-backed volatile peer storage. All calls take the same request lock. */
-void path_for(ArcContext *app, const char *id, char *dst, size_t len);
+int path_for(ArcContext *app, const char *id, char *dst, size_t len);
 J *load_peer(ArcContext *app, const char *id);
 int store_peer(ArcContext *app, J *peer);
 int peer_alive(ArcContext *app, J *peer);
@@ -84,8 +84,8 @@ int finish_peer_transaction(ArcContext *app, J *first, J *second);
 int valid_signal_acks(J *req, int *ack_mode);
 J *poll_signal_queue(ArcContext *app, J *peer, J *req, int ack_mode);
 J *live_signal_queue(ArcContext *app, J *queue);
-int seen_signal_request(ArcContext *app, J *me, const char *request_id, const char *to, const char *kind, J *body);
-void remember_signal_request(ArcContext *app, J *me, const char *request_id, const char *to, const char *kind, J *body);
+int seen_signal_request(ArcContext *app, J *me, const char *request_id, const char *to, const char *kind, J *body, const char *transfer_id);
+void remember_signal_request(ArcContext *app, J *me, const char *request_id, const char *to, const char *kind, J *body, const char *transfer_id);
 
 /* Lightweight timing, with no file contents or device identifiers. */
 uint64_t monotonic_us(void);

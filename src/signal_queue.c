@@ -81,7 +81,7 @@ static void body_fingerprint(J *body, char out[17]) {
    committed sends on the sender so a lost HTTP response cannot duplicate an
    invite, or consume the one-time acceptance permission twice. */
 int seen_signal_request(ArcContext *app, J *me, const char *request_id,
-                        const char *to, const char *kind, J *body) {
+                        const char *to, const char *kind, J *body, const char *transfer_id) {
     if (!request_id) return 0;
     char fingerprint[17]; body_fingerprint(body, fingerprint);
     J *sent = field(me, "sent");
@@ -92,13 +92,15 @@ int seen_signal_request(ArcContext *app, J *me, const char *request_id,
         if (json_object_get_int64(field(entry, "until")) <= (int64_t)app->now_time) continue;
         return !strcmp(sfield(entry, "to") ? sfield(entry, "to") : "", to) &&
             !strcmp(sfield(entry, "kind") ? sfield(entry, "kind") : "", kind) &&
-            !strcmp(sfield(entry, "bodyHash") ? sfield(entry, "bodyHash") : "", fingerprint) ? 1 : -1;
+            !strcmp(sfield(entry, "bodyHash") ? sfield(entry, "bodyHash") : "", fingerprint) &&
+            !strcmp(sfield(entry, "transferId") ? sfield(entry, "transferId") : "",
+                    transfer_id ? transfer_id : "") ? 1 : -1;
     }
     return 0;
 }
 
 void remember_signal_request(ArcContext *app, J *me, const char *request_id,
-                             const char *to, const char *kind, J *body) {
+                             const char *to, const char *kind, J *body, const char *transfer_id) {
     if (!request_id) return;
     char fingerprint[17]; body_fingerprint(body, fingerprint);
     J *previous = field(me, "sent"), *next = json_object_new_array();
@@ -114,6 +116,7 @@ void remember_signal_request(ArcContext *app, J *me, const char *request_id,
     J *entry = json_object_new_object();
     addstr(entry, "id", request_id); addstr(entry, "to", to); addstr(entry, "kind", kind);
     addstr(entry, "bodyHash", fingerprint);
+    if (transfer_id) addstr(entry, "transferId", transfer_id);
     addint(entry, "until", (int64_t)app->now_time + SIGNAL_TTL);
     json_object_array_add(next, entry);
     json_object_object_add(me, "sent", next);

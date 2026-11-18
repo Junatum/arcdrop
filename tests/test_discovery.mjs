@@ -41,7 +41,7 @@ function memoryStore(values = {}, blocked = false) {
     data,
   };
 }
-function setup({ blocked = false, local = {}, tab = {}, responses = {} } = {}) {
+function setup({ blocked = false, local = {}, tab = {}, responses = {}, channelBus = null } = {}) {
   const nodes = new Map();
   const get = (name) => { if (!nodes.has(name)) nodes.set(name, new Element()); return nodes.get(name); };
   const windowEvents = new Map(); const documentEvents = new Map();
@@ -64,8 +64,16 @@ function setup({ blocked = false, local = {}, tab = {}, responses = {} } = {}) {
       ? {id: 'a'.repeat(24), token: 'b'.repeat(48)} : action === 'peers' ? {peers: []} : {} };
     return { ok: response.status < 400, status: response.status, json: async () => response.body };
   };
+  const BroadcastChannel = channelBus ? class {
+    constructor() { this.onmessage = null; channelBus.push(this); }
+    postMessage(message) {
+      for (const peer of channelBus) if (peer !== this) peer.onmessage?.({data: message});
+    }
+    close() { const pos = channelBus.indexOf(this); if (pos >= 0) channelBus.splice(pos, 1); }
+  } : undefined;
   const context = vm.createContext({ window, document, location, navigator, fetch, localStorage, sessionStorage,
-    setTimeout, clearTimeout, console, TextEncoder, Blob });
+    setTimeout, clearTimeout, console, TextEncoder, Blob, AbortController, BroadcastChannel,
+    crypto: {getRandomValues(bytes) { bytes.fill(0xaa); return bytes; }} });
   vm.runInContext(app, context, {filename: 'app.js'});
   // The unit test controls polling explicitly to avoid asynchronous timers.
   vm.runInContext('globalThis.__realLoop = loop; loop = async () => {}', context);
@@ -382,7 +390,7 @@ test('ACK 폴링은 응답 재전달에서도 신호를 중복 실행하지 않�
   assert.deepEqual([...t.requests.at(-1).data.acks], [id]);
 });
 
-test('실패한 신호 처리도 다른 신호를 막지 않고 ACK를 남긴다', async () => {
+test('처리 실패한 신호는 즉시 ACK하지 않고 재시도한 뒤 종료 처리한다', async () => {
   const first = 'a'.repeat(24), second = 'b'.repeat(24);
   const t = setup({responses: {poll: {status:200, body:{messages:[
     {id:first,from:'f'.repeat(24),kind:'failed',body:{}},
@@ -396,11 +404,62 @@ test('실패한 신호 처리도 다른 신호를 막지 않고 ACK를 남긴다
   }; pollWait = async () => { state.running = false; };`);
   await evaluate(t, '__realLoop(state.loopId)');
   assert.deepEqual([...t.context.handled], ['next']);
-  assert.deepEqual([...evaluate(t, 'pendingAcks')], [first, second]);
-  evaluate(t, 'state.running = true');
-  await evaluate(t, '__realLoop(state.loopId)');
-  assert.deepEqual([...t.requests.at(-1).data.acks], [first, second]);
+  assert.deepEqual([...evaluate(t, 'pendingAcks')], [second], '실패한 메시지는 ACK 보류');
+  for (let attempt = 2; attempt <= 3; attempt++) {
+    evaluate(t, 'state.running = true');
+    await evaluate(t, '__realLoop(state.loopId)');
+  }
+  assert.ok([...evaluate(t, 'pendingAcks')].includes(first), '3회 실패 후에만 종료 ACK');
   assert.deepEqual([...t.context.handled], ['next']);
+  assert.equal(evaluate(t, 'failedSignals.size'), 0);
+});
+
+test('복제 탭은 기존 세션 토큰을 공유하지 않고 새 세션을 등록한다', async () => {
+  const channelBus = [];
+  const first = setup({channelBus});
+  await evaluate(first, 'ensureSession()');
+  const copied = first.sessionStorage.getItem('arcdrop-session');
+  assert.equal(channelBus.length, 1);
+  const second = setup({channelBus, tab: {'arcdrop-session': copied}});
+  await evaluate(second, 'ensureSession()');
+  assert.deepEqual(second.requests.map((item) => item.action), ['register', 'peers']);
+  assert.equal(first.requests.filter((item) => item.action === 'register').length, 1);
+});
+
+test('전송 ID는 새 프로토콜 기기에만 사용하고 구형 기기에는 기존 흐름을 유지한다', async () => {
+  const t = setup();
+  await evaluate(t, 'ensureSession()');
+  t.context.file = { name:'test.txt', size:1 };
+  t.context.modern = { id:'m'.repeat(24), name:'Modern', protocolVersion:2 };
+  t.context.legacy = { id:'l'.repeat(24), name:'Legacy' };
+  await evaluate(t, 'beginInvite(modern, file)');
+  assert.equal(t.requests.at(-1).data.transferId, 'aa'.repeat(12));
+  evaluate(t, 'resetTransfer()');
+  await evaluate(t, 'beginInvite(legacy, file)');
+  assert.equal('transferId' in t.requests.at(-1).data, false);
+  assert.equal(evaluate(t, 'state.active.transferId'), null);
+  evaluate(t, 'resetTransfer()');
+});
+
+test('CGI API는 네트워크가 멈추면 AbortController로 시간을 제한한다', async () => {
+  const t = setup();
+  t.context.fetch = async (_url, config) => new Promise((_resolve, reject) => {
+    config.signal.addEventListener('abort', () => reject(new Error('aborted')));
+  });
+  await assert.rejects(evaluate(t, "api('poll', {}, 5)"), /시간이 초과/);
+});
+
+test('이전 전송의 취소와 거절 신호는 새 전송을 종료하지 않는다', async () => {
+  const t = setup();
+  const from = 'f'.repeat(24);
+  evaluate(t, `state.active = {peerId:'${from}',transferId:'2'.repeat(24),role:'sender',
+    phase:'awaiting-approval',channel:null,pc:null,timeout:null};`);
+  await evaluate(t, `handleSignal({from:'${from}',kind:'bye',transferId:'1'.repeat(24),body:{}})`);
+  assert.equal(evaluate(t, 'state.active.peerId'), from);
+  await evaluate(t, `handleSignal({from:'${from}',kind:'decline',transferId:'1'.repeat(24),body:{}})`);
+  assert.equal(evaluate(t, 'state.active.peerId'), from);
+  await evaluate(t, `handleSignal({from:'${from}',kind:'decline',transferId:'2'.repeat(24),body:{}})`);
+  assert.equal(evaluate(t, 'state.active'), null);
 });
 
 test('신호 요청 ID는 보안 난수로 생성하고 요청 재전송에서 동일 ID를 유지한다', async () => {

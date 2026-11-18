@@ -200,7 +200,7 @@ class ArcDropBrowserTests(unittest.TestCase):
                             else:
                                 self.assertEqual(received.read_bytes(), payload)
                             receiver.locator('#done').click()
-                            sender.locator('#transfer.hidden').wait_for(timeout=15000)
+                            sender.locator('#transfer').wait_for(state='hidden', timeout=15000)
                             # The receiver releases its WebRTC connection 800ms after ACK.
                             # Wait for the real UI to become selectable before reversing roles.
                             receiver.wait_for_function(
@@ -216,7 +216,7 @@ class ArcDropBrowserTests(unittest.TestCase):
                                                  'buffer': b'REJECT THIS'})
                         b.locator('#incoming:not(.hidden)').wait_for(timeout=20000)
                         b.locator('#decline').click()
-                        a.locator('#transfer.hidden').wait_for(timeout=15000)
+                        a.locator('#transfer').wait_for(state='hidden', timeout=15000)
                         # Sender cancels while the receiver still has the consent dialog.
                         with a.expect_file_chooser() as chooser:
                             a.locator('.peer').first.click()
@@ -224,8 +224,8 @@ class ArcDropBrowserTests(unittest.TestCase):
                                                  'buffer': b'CANCEL THIS'})
                         b.locator('#incoming:not(.hidden)').wait_for(timeout=20000)
                         a.locator('#cancel').click()
-                        a.locator('#transfer.hidden').wait_for(timeout=10000)
-                        b.locator('#incoming.hidden').wait_for(timeout=20000)
+                        a.locator('#transfer').wait_for(state='hidden', timeout=10000)
+                        b.locator('#incoming').wait_for(state='hidden', timeout=20000)
                         # A tab reload must restore its session and peer discovery.
                         a.reload(timeout=20000)
                         a.locator('#connection-label').get_by_text('로컬 연결').wait_for(timeout=20000)

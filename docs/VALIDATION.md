@@ -2,6 +2,27 @@
 
 This checklist applies to the actual **SmartSafeHub OpenWrt router**. Automated host tests cannot establish production HTTPS trust, client isolation, reliable iPadOS WebKit behavior, or SmartSafeHub Apps publication.
 
+## 0.1.0-r20: protocol and storage regression checks
+
+The browser E2E runner now waits for the **hidden state** of closed transfer and incoming dialogs; Playwright's default visible wait must not be used on `.hidden` elements. The Chromium smoke job still needs to pass on the GitHub Actions runner. Loopback navigation was denied in the isolated development environment, so that environment cannot establish a passing real-browser result.
+
+- Signaling now carries an optional 24-hex `transferId` outside its strict legacy `body`. New browsers advertise `protocolVersion: 2` on registration and only send scoped invitations to peers that advertise the same version. Older browsers continue the legacy protocol, including mixed-version peer pairs. Confirm that a delayed old `bye`/`decline` cannot interrupt the next transfer with the same peer.
+- Unprocessed messages are not immediately acknowledged. The browser retries a handler error at most three times; terminal errors are acknowledged to prevent a permanent resend loop. Failed CGI request transport is bounded by AbortController and a signaling request retries with the original `requestId`.
+- Duplicate tabs normally obtain separate CGI sessions through BroadcastChannel (where available); browsers that block BroadcastChannel retain the legacy per-tab session policy. Test duplicated tabs, reload and BFCache on iPad Safari.
+- For files **up to 8 MiB**, a browser with WebCrypto advertises a SHA-256 digest on the WebRTC `end` control message. A mismatch prevents the download and ACK. Larger transfers retain the previous 64 MiB-capable segmented Blob path without an additional whole-file digest allocation. For these larger files, verify their checksum manually after download.
+- Stale atomic temporary files are removed only after 120 seconds during the periodic cleanup pass and only when they are ordinary files, privately owned, and match known temporary suffixes. Inspect only counts/permissions, not token-bearing session JSON.
+
+Commands:
+
+```sh
+python3 tests/test_cgi.py
+node --test tests/*.mjs
+python3 tests/test_e2e_portability.py
+sh tests/test-build-prepare.sh
+# Run with installed Playwright browser on a normal local or CI host:
+ARCDROP_E2E_BROWSER=chromium python3 e2e/browser_e2e.py
+```
+
 ## Host contracts
 
 ```sh

@@ -3,6 +3,28 @@
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
 
+## 0.1.0-r20 (2026-11-18)
+
+### Fixed
+- Fix the Chromium E2E wait for hidden transfer/consent dialogs; use Playwright's hidden state instead of waiting for a hidden element to become visible.
+- Keep signaling messages unacknowledged on transient processing errors; retry a bounded three times before terminal handling.
+- Isolate new and earlier transfers between the same devices using a scoped transfer ID for server consent and browser signaling.
+
+### Improved
+- Set explicit CGI request timeouts and retain idempotent request identifiers across uncertain signaling retries.
+- Detect cloned sessionStorage tokens between open tabs through BroadcastChannel where supported, registering an independent session for the new tab.
+- Check generated session paths for truncation and remove only stale, private, owned, regular atomic-write temporary files.
+- Optionally verify files up to 8 MiB using end-to-end WebCrypto SHA-256; keep the 64 MiB limit and avoid full-buffer hashing on larger files to protect mobile memory.
+
+### Compatibility
+- Preserve legacy signaling without transfer IDs, LAN-only HTTPS restrictions, direct WebRTC file payload transfer and the existing OpenWrt package dependencies.
+- Do not store file contents or hashes as persistent file data on the router. Do not add a frontend build step.
+
+### Tests
+- Cover Playwright hidden-state waits, transfer ID consent/late-message isolation, retry acknowledgements, request timeouts, cloned tabs, integrity mismatch and safe stale temporary file cleanup.
+- Keep manual physical-router and iPad Safari acceptance tests separate from host automation.
+
+
 ## 0.1.0-r19 (2026-11-18)
 
 ### Fixed

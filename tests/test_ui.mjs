@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import vm from 'node:vm';
+import { createHash, webcrypto } from 'node:crypto';
 import { browserTestSource } from '../tools/browser_vm.mjs';
 import { compactCss } from '../tools/css_fixture.mjs';
 const root = resolve(import.meta.dirname, '..');
@@ -247,7 +248,7 @@ test('주변 기기 클릭이 파일 선택으로 이어지고 파일 선택 후
       requests.push({ url, body: JSON.parse(init.body) });
       return { ok: true, json: async () => ({}) };
     },
-    setTimeout, clearTimeout, navigator: {}, console, TextEncoder, Blob,
+    setTimeout, clearTimeout, navigator: {}, console, TextEncoder, Blob, AbortController,
   };
   const context = vm.createContext(sandbox);
   vm.runInContext(app, context, { filename: 'app.js' });
@@ -525,6 +526,26 @@ test('주변 기기가 없어도 중복 안내 문구 없이 탐지 상태만 �
   assert.doesNotMatch(demoJs, /dataset\.empty/);
 });
 
+test('SDP 협상 실패는 이전 단계를 복원하여 재전달된 신호를 다시 처리할 수 있다', async () => {
+  for (const [role, phase, kind] of [
+    ['sender', 'awaiting-approval', 'accept'],
+    ['receiver', 'awaiting-offer', 'offer'],
+  ]) {
+    const {context} = createBrowserRuntime();
+    const id = '1'.repeat(24);
+    context.testMessage = {from:'peer',transferId:id,kind,body:kind === 'offer'
+      ? {sdp:{type:'offer',sdp:'v=0'}} : {}};
+    context.testTransferId = id;
+    vm.runInContext(`state.active = {
+      peerId:'peer', transferId:testTransferId, role:'${role}',phase:'${phase}',
+      pc:null,channel:null,received:[],parts:[],candidates:[],timeout:null,finished:false
+    }`, context);
+    await assert.rejects(vm.runInContext('handleSignal(testMessage)', context));
+    assert.equal(vm.runInContext('state.active.phase', context), phase);
+    assert.equal(vm.runInContext('state.active.pc', context), null);
+  }
+});
+
 test('전송 상태를 확인해 조기 ACK와 잘못된 청크를 거부한다', () => {
   const { context } = createBrowserRuntime();
   context.testChannel = { readyState:'open',send() {},close() {} };
@@ -569,6 +590,57 @@ test('수신 메모리는 1MiB씩 Blob 구간으로 묶고 원본 데이터 순�
   assert.deepEqual([...bytes.slice(63*16384, 63*16384+3)], [63, 63, 63]);
   assert.deepEqual([...bytes.slice(-3)], [7, 8, 9]);
   assert.equal(vm.runInContext('state.active.parts.length', context), 0);
+});
+
+test('SHA-256 일치 시에만 다운로드를 보여주고 손상되면 전송을 거부한다', async () => {
+  for (const mismatch of [false, true]) {
+    const { context, get } = createBrowserRuntime();
+    const payload = Uint8Array.from([65, 66, 67]);
+    const expected = createHash('sha256').update(payload).digest('hex');
+    context.crypto = webcrypto;
+    const sent = [];
+    let created = 0;
+    context.URL = {
+      createObjectURL() { created++; return 'blob:sha-test'; },
+      revokeObjectURL() {},
+    };
+    context.testChannel = { readyState:'open', send(text) { sent.push(JSON.parse(text)); }, close() {} };
+    vm.runInContext(`state.active = {
+      peerId:'peer',peerName:'peer',role:'receiver',phase:'receiving',started:true,bytes:3,
+      offer:{name:'test.bin',size:3},channel:testChannel,received:[new Uint8Array([65,66,67]).buffer],
+      parts:[],candidates:[],timeout:null
+    }`, context);
+    context.expectedHash = mismatch ? '0'.repeat(64) : expected;
+    vm.runInContext(`receiveMessage(state.active, JSON.stringify({type:'end',sha256:expectedHash}))`, context);
+    assert.equal(get('download').classList.contains('hidden'), true, '검증 중 다운로드 금지');
+    for (let n=0; n<30; n++) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+      if (mismatch ? vm.runInContext('state.active === null', context) : created === 1) break;
+    }
+    assert.equal(created, mismatch ? 0 : 1);
+    assert.equal(sent.some(m => m.type === 'ack'), !mismatch, '검증 실패 후 ACK 금지');
+    if (mismatch) assert.match(get('notice-text').textContent, /무결성 검사/);
+    else assert.equal(get('download').classList.contains('hidden'), false);
+  }
+});
+
+test('송신 측 SHA-256은 작은 파일에만 포함하며 큰 파일은 추가 메모리를 할당하지 않는다', async () => {
+  const { context } = createBrowserRuntime();
+  context.crypto = webcrypto;
+  context.testFile = new Blob([Uint8Array.from([65, 66, 67])]);
+  context.testFile.name = 'abc.txt';
+  const sent = [];
+  context.testChannel = {readyState:'open',bufferedAmount:0,send(v) {
+    if (typeof v === 'string') sent.push(JSON.parse(v));
+  },close() {}};
+  vm.runInContext(`state.active = {
+    file:testFile,peerId:'peer',peerName:'peer',role:'sender',channel:testChannel,
+    bytes:0,received:[],parts:[],candidates:[],timeout:null
+  }`, context);
+  await vm.runInContext('sendFile(state.active)', context);
+  assert.equal(sent.at(-1).sha256, createHash('sha256').update('ABC').digest('hex'));
+  context.big = {size:9*1024*1024,arrayBuffer() {throw Error('unexpected full read');}};
+  assert.equal(await vm.runInContext('smallFileDigest(big)', context), null);
 });
 
 test('전송 진행률은 100ms마다 갱신하며 완료 상태는 즉시 표시한다', () => {

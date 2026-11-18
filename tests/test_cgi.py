@@ -240,6 +240,17 @@ class ArcDropCGITests(unittest.TestCase):
         self.assertNotIn('fileData', state)
         self.assertNotIn('fileBytes', state)
 
+    def test_신규_프로토콜_기기만_전송_ID_기능을_광고하고_기존_기기는_유지한다(self):
+        status, modern = self.call('register', {'name': 'Modern', 'protocolVersion': 2})
+        self.assertEqual(status, 200)
+        legacy = self.session('Legacy')
+        rows = self.call('peers', legacy)[1]['peers']
+        self.assertEqual(rows[0], {'id': modern['id'], 'name': 'Modern', 'protocolVersion': 2})
+        rows = self.call('peers', modern)[1]['peers']
+        self.assertEqual(rows[0], {'id': legacy['id'], 'name': 'Legacy'})
+        for invalid in ('2', 1, 3, True, None):
+            self.assertEqual(self.call('register', {'name': 'Invalid', 'protocolVersion': invalid})[0], 400)
+
     def test_기기_설정은_기존_세션을_유지하고_주변_화면을_갱신한다(self):
         ipad = self.session('iPad')
         mac = self.session('Mac')
@@ -421,6 +432,65 @@ class ArcDropCGITests(unittest.TestCase):
         delivered = self.call('poll', {**b, 'acks': []})[1]['messages']
         self.assertEqual(len(delivered), 1)
         self.assertEqual(delivered[0]['id'], 'e' * 24)
+
+    def test_전송_ID는_승인_권한과_지연_메시지를_독립적으로_검증한다(self):
+        a, b = self.session('A'), self.session('B')
+        first, second = '1' * 24, '2' * 24
+        invite = {'name': 'alpha.txt', 'size': 5}
+        self.assertEqual(self.call('signal', {**a, 'to': b['id'], 'kind': 'invite',
+            'transferId': first, 'body': invite})[0], 200)
+        received = self.call('poll', {**b, 'acks': []})[1]['messages']
+        self.assertEqual(received[-1]['transferId'], first)
+        self.assertEqual(self.call('signal', {**b, 'to': a['id'], 'kind': 'accept',
+            'transferId': second, 'body': {}})[0], 403)
+        self.assertEqual(self.call('signal', {**b, 'to': a['id'], 'kind': 'accept',
+            'transferId': first, 'body': {}})[0], 200)
+        self.assertEqual(self.call('signal', {**a, 'to': b['id'], 'kind': 'offer',
+            'transferId': first, 'body': {'sdp': {'type': 'offer', 'sdp': 'v=0\r\nTESTLONG'}}})[0], 200)
+        self.assertEqual(self.call('signal', {**a, 'to': b['id'], 'kind': 'invite',
+            'transferId': second, 'body': invite})[0], 200)
+        self.assertEqual(self.call('signal', {**b, 'to': a['id'], 'kind': 'accept',
+            'transferId': second, 'body': {}})[0], 200)
+        # The earlier transfer cannot cancel or send an SDP into the new scope.
+        self.assertEqual(self.call('signal', {**a, 'to': b['id'], 'kind': 'bye',
+            'transferId': first, 'body': {}})[0], 403)
+        self.assertEqual(self.call('signal', {**a, 'to': b['id'], 'kind': 'offer',
+            'transferId': first, 'body': {'sdp': {'type': 'offer', 'sdp': 'v=0\r\nOLDLONG'}}})[0], 403)
+        self.assertEqual(self.call('signal', {**a, 'to': b['id'], 'kind': 'bye',
+            'transferId': second, 'body': {}})[0], 200)
+
+    def test_전송_ID_형식과_재시도_일관성을_검사한다(self):
+        a, b = self.session('A'), self.session('B')
+        invite = {**a, 'to': b['id'], 'kind': 'invite', 'body': {'name': 'a', 'size': 1}}
+        for invalid in (None, '', 'A' * 24, 'x' * 24, 3):
+            self.assertEqual(self.call('signal', {**invite, 'transferId': invalid})[0], 400)
+        first = {**invite, 'transferId': 'a' * 24, 'requestId': 'd' * 24}
+        self.assertEqual(self.call('signal', first)[0], 200)
+        self.assertEqual(self.call('signal', first)[0], 200)
+        self.assertEqual(self.call('signal', {**first, 'transferId': 'b' * 24})[0], 409)
+        self.assertEqual(len(self.call('poll', {**b, 'acks': []})[1]['messages']), 1)
+
+    def test_정리_주기에는_오래된_임시_파일만_제거한다(self):
+        a = self.session('A')
+        state = Path(self.tmp)
+        names = [f"{a['id']}.json.tmp.123", '.cleanup.tmp.456', '.transaction.tmp.789']
+        for name in names:
+            p = state / name
+            p.write_text('stale', encoding='utf-8')
+            os.chmod(p, 0o600)
+            os.utime(p, (1700000000, 1700000000))
+        fresh = state / f"{a['id']}.json.tmp.999"
+        fresh.write_text('fresh', encoding='utf-8')
+        outside = state / 'unrelated.tmp.123'
+        outside.write_text('keep', encoding='utf-8')
+        attack = state / '.cleanup.tmp.000'
+        attack.symlink_to(outside)
+        self.time += 16
+        self.assertEqual(self.call('heartbeat', a)[0], 200)
+        self.assertTrue(fresh.exists() and outside.exists() and attack.is_symlink())
+        for name in names:
+            self.assertFalse((state / name).exists(), name)
+        self.assertEqual(outside.read_text(encoding='utf-8'), 'keep')
 
     def test_CGI_응답에는_비식별_처리시간_계측을_포함한다(self):
         session = self.session('A')

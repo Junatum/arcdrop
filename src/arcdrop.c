@@ -29,7 +29,10 @@ static void handle(ArcContext *app, const char *action, J *req) {
         json_object_put(me); respond(app, 200, json_object_new_object());
     }
     if (!strcmp(action, "leave")) {
-        char path[320]; path_for(app, my_id, path, sizeof(path)); unlink(path);
+        char path[320];
+        if (!path_for(app, my_id, path, sizeof(path)) || unlink(path) != 0) {
+            json_object_put(me); error_reply(app, 503, "state unavailable");
+        }
         json_object_put(me); respond(app, 200, json_object_new_object());
     }
     if (!strcmp(action, "peers")) {

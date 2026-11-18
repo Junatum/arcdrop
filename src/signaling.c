@@ -3,18 +3,24 @@
 #include "arcdrop.h"
 #include <string.h>
 
-static int is_allowed(ArcContext *app, J *peer, const char *other_id) {
+/* Scoped consent: an old transfer cannot authorize a new one between the same peers.
+   NULL keeps the pre-transfer-ID protocol independently compatible. */
+static int transfer_matches(J *row, const char *transfer_id) {
+    const char *stored = sfield(row, "transferId");
+    return transfer_id ? (stored && !strcmp(stored, transfer_id)) : !stored;
+}
+static int is_allowed(ArcContext *app, J *peer, const char *other_id, const char *transfer_id) {
     J *allowed = field(peer, "allowed");
     if (!json_object_is_type(allowed, json_type_array)) return 0;
     for (size_t i = 0; i < json_object_array_length(allowed); i++) {
         J *row = json_object_array_get_idx(allowed, i);
         const char *id = sfield(row, "id");
-        if (id && strcmp(id, other_id) == 0 &&
+        if (id && strcmp(id, other_id) == 0 && transfer_matches(row, transfer_id) &&
                 json_object_get_int64(field(row, "until")) > (int64_t)app->now_time) return 1;
     }
     return 0;
 }
-static void allow(ArcContext *app, J *p, const char *id) {
+static void allow(ArcContext *app, J *p, const char *id, const char *transfer_id) {
     J *arr = field(p, "allowed");
     if (!arr) { arr = json_object_new_array(); json_object_object_add(p, "allowed", arr); }
     J *list = json_object_new_array();
@@ -24,22 +30,23 @@ static void allow(ArcContext *app, J *p, const char *id) {
         if (current && strcmp(current, id) && json_object_get_int64(field(row, "until")) > (int64_t)app->now_time)
             json_object_array_add(list, json_object_get(row));
     }
-    J *entry = json_object_new_object(); addstr(entry, "id", id); addint(entry, "until", app->now_time + 120);
+    J *entry = json_object_new_object(); addstr(entry, "id", id); if (transfer_id) addstr(entry, "transferId", transfer_id);
+    addint(entry, "until", app->now_time + 120);
     json_object_array_add(list, entry);
     json_object_object_add(p, "allowed", list);
 }
-static int pending_has(ArcContext *app, J *p, const char *id) {
+static int pending_has(ArcContext *app, J *p, const char *id, const char *transfer_id) {
     J *items = field(p, "pending");
     if (!json_object_is_type(items, json_type_array)) return 0;
     for (size_t i = 0; i < json_object_array_length(items); i++) {
         J *row = json_object_array_get_idx(items, i);
         const char *from = sfield(row, "id");
-        if (from && strcmp(from, id) == 0 &&
+        if (from && strcmp(from, id) == 0 && transfer_matches(row, transfer_id) &&
             json_object_get_int64(field(row, "until")) > (int64_t)app->now_time) return 1;
     }
     return 0;
 }
-static void pending_update(ArcContext *app, J *p, const char *id, int add) {
+static void pending_update(ArcContext *app, J *p, const char *id, const char *transfer_id, int add) {
     J *items = field(p, "pending");
     J *list = json_object_new_array();
     if (json_object_is_type(items, json_type_array)) {
@@ -53,7 +60,8 @@ static void pending_update(ArcContext *app, J *p, const char *id, int add) {
     }
     if (add) {
         J *entry = json_object_new_object();
-        addstr(entry, "id", id); addint(entry, "until", app->now_time + 60);
+        addstr(entry, "id", id); if (transfer_id) addstr(entry, "transferId", transfer_id);
+        addint(entry, "until", app->now_time + 60);
         json_object_array_add(list, entry);
     }
     json_object_object_add(p, "pending", list);
@@ -95,16 +103,21 @@ _Noreturn void handle_signal(ArcContext *app, J *me, J *req) {
     const char *my_id = sfield(me, "id");
     const char *to = sfield(req, "to"), *kind = sfield(req, "kind");
     J *body = field(req, "body");
+    J *transfer_field = NULL;
+    int has_transfer_id = json_object_object_get_ex(req, "transferId", &transfer_field);
+    const char *transfer_id = has_transfer_id && json_object_is_type(transfer_field, json_type_string) ?
+        json_object_get_string(transfer_field) : NULL;
     J *request_field = NULL;
     int has_request_id = json_object_object_get_ex(req, "requestId", &request_field);
     const char *request_id = has_request_id && json_object_is_type(request_field, json_type_string) ?
         json_object_get_string(request_field) : NULL;
     if ((has_request_id && !is_hex(request_id, 24)) ||
+        (has_transfer_id && !is_hex(transfer_id, 24)) ||
         !is_hex(to, 24) || !message_kind_ok(kind) || !body || !signal_body_ok(kind, body) ||
         strlen(json_object_to_json_string_ext(body, JSON_C_TO_STRING_PLAIN)) > MAX_SIGNAL || !strcmp(to, my_id)) {
         json_object_put(me); error_reply(app, 400, "invalid signal");
     }
-    int previous = seen_signal_request(app, me, request_id, to, kind, body);
+    int previous = seen_signal_request(app, me, request_id, to, kind, body, transfer_id);
     if (previous != 0) {
         json_object_put(me);
         if (previous > 0) respond(app, 200, json_object_new_object());
@@ -115,14 +128,14 @@ _Noreturn void handle_signal(ArcContext *app, J *me, J *req) {
         if (other) json_object_put(other);
         json_object_put(me); error_reply(app, 404, "device no longer available");
     }
-    if ((!strcmp(kind, "accept") || !strcmp(kind, "decline")) && !pending_has(app, me, to)) {
+    if ((!strcmp(kind, "accept") || !strcmp(kind, "decline")) && !pending_has(app, me, to, transfer_id)) {
         json_object_put(other); json_object_put(me); error_reply(app, 403, "no pending invitation");
     }
     /* The inviter may withdraw consent before approval, but may not cancel
        an arbitrary peer: the recipient must have this sender pending. */
-    int withdrawing_invite = !strcmp(kind, "bye") && pending_has(app, other, my_id);
+    int withdrawing_invite = !strcmp(kind, "bye") && pending_has(app, other, my_id, transfer_id);
     if (strcmp(kind, "invite") && strcmp(kind, "accept") && strcmp(kind, "decline") &&
-        !withdrawing_invite && (!is_allowed(app, me, to) || !is_allowed(app, other, my_id))) {
+        !withdrawing_invite && (!is_allowed(app, me, to, transfer_id) || !is_allowed(app, other, my_id, transfer_id))) {
         json_object_put(other); json_object_put(me); error_reply(app, 403, "recipient has not approved the transfer");
     }
     J *queue = live_signal_queue(app, field(other, "messages"));
@@ -141,6 +154,7 @@ _Noreturn void handle_signal(ArcContext *app, J *me, J *req) {
     addstr(msg, "id", request_id ? request_id : generated_id);
     addint(msg, "at", (int64_t)app->now_time);
     addstr(msg, "from", my_id); addstr(msg, "kind", kind);
+    if (transfer_id) addstr(msg, "transferId", transfer_id);
     json_object_object_add(msg, "body", json_object_get(body));
     size_t queued_bytes = strlen(json_object_to_json_string_ext(queue, JSON_C_TO_STRING_PLAIN));
     size_t new_bytes = strlen(json_object_to_json_string_ext(msg, JSON_C_TO_STRING_PLAIN));
@@ -153,11 +167,11 @@ _Noreturn void handle_signal(ArcContext *app, J *me, J *req) {
         error_reply(app, 503, "state unavailable");
     }
     json_object_object_add(other, "messages", queue);
-    remember_signal_request(app, me, request_id, to, kind, body);
-    if (!strcmp(kind, "invite")) pending_update(app, other, my_id, 1);
-    if (!strcmp(kind, "accept")) { pending_update(app, me, to, 0); allow(app, me, to); allow(app, other, my_id); }
-    if (!strcmp(kind, "decline")) pending_update(app, me, to, 0);
-    if (withdrawing_invite) pending_update(app, other, my_id, 0);
+    remember_signal_request(app, me, request_id, to, kind, body, transfer_id);
+    if (!strcmp(kind, "invite")) pending_update(app, other, my_id, transfer_id, 1);
+    if (!strcmp(kind, "accept")) { pending_update(app, me, to, transfer_id, 0); allow(app, me, to, transfer_id); allow(app, other, my_id, transfer_id); }
+    if (!strcmp(kind, "decline")) pending_update(app, me, to, transfer_id, 0);
+    if (withdrawing_invite) pending_update(app, other, my_id, transfer_id, 0);
     json_object_array_add(queue, msg);
     if (!finish_peer_transaction(app, other, me)) {
         json_object_put(other); json_object_put(me); error_reply(app, 503, "state unavailable");

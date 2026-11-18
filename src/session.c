@@ -41,6 +41,7 @@ void list_peers(const char *id, J *peer, void *ctx) {
     addstr(row, "name", sfield(peer, "name") ? sfield(peer, "name") : "Device");
     const char *device_type = sfield(peer, "deviceType");
     if (valid_device_type(device_type)) addstr(row, "deviceType", device_type);
+    if (json_object_get_int(field(peer, "protocolVersion")) == 2) addint(row, "protocolVersion", 2);
     /* Presence is an advisory UI hint, not a guarantee of P2P reachability.
        Omit it for legacy clients that have never sent a poll request. */
     J *last_poll = field(peer, "lastPoll");
@@ -64,6 +65,10 @@ void create_session(ArcContext *app, J *req) {
     const char *device_type = sfield(req, "deviceType");
     if (has_device_type && !valid_device_type(device_type))
         error_reply(app, 400, "invalid device type");
+    J *protocol = NULL;
+    int has_protocol = json_object_object_get_ex(req, "protocolVersion", &protocol);
+    if (has_protocol && (!json_object_is_type(protocol, json_type_int) || json_object_get_int(protocol) != 2))
+        error_reply(app, 400, "invalid protocol version");
     struct counters counter = {.app = app}; walk_peers(app, count_peers, &counter);
     if (counter.all >= MAX_PEERS || counter.from_ip >= MAX_PER_IP) error_reply(app, 429, "too many devices");
     char id[25], token[49];
@@ -72,6 +77,7 @@ void create_session(ArcContext *app, J *req) {
     addstr(p, "id", id); addstr(p, "token", token); addstr(p, "ip", app->client_ip);
     addstr(p, "name", name);
     if (device_type) addstr(p, "deviceType", device_type);
+    if (has_protocol) addint(p, "protocolVersion", 2);
     addint(p, "last", app->now_time);
     addint(p, "window", app->now_time); addint(p, "requests", 0);
     json_object_object_add(p, "messages", json_object_new_array());
