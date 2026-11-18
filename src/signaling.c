@@ -95,9 +95,20 @@ _Noreturn void handle_signal(ArcContext *app, J *me, J *req) {
     const char *my_id = sfield(me, "id");
     const char *to = sfield(req, "to"), *kind = sfield(req, "kind");
     J *body = field(req, "body");
-    if (!is_hex(to, 24) || !message_kind_ok(kind) || !body || !signal_body_ok(kind, body) ||
+    J *request_field = NULL;
+    int has_request_id = json_object_object_get_ex(req, "requestId", &request_field);
+    const char *request_id = has_request_id && json_object_is_type(request_field, json_type_string) ?
+        json_object_get_string(request_field) : NULL;
+    if ((has_request_id && !is_hex(request_id, 24)) ||
+        !is_hex(to, 24) || !message_kind_ok(kind) || !body || !signal_body_ok(kind, body) ||
         strlen(json_object_to_json_string_ext(body, JSON_C_TO_STRING_PLAIN)) > MAX_SIGNAL || !strcmp(to, my_id)) {
         json_object_put(me); error_reply(app, 400, "invalid signal");
+    }
+    int previous = seen_signal_request(app, me, request_id, to, kind, body);
+    if (previous != 0) {
+        json_object_put(me);
+        if (previous > 0) respond(app, 200, json_object_new_object());
+        error_reply(app, 409, "signal request ID already used");
     }
     J *other = load_peer(app, to);
     if (!other || !peer_alive(app, other)) {
@@ -111,25 +122,35 @@ _Noreturn void handle_signal(ArcContext *app, J *me, J *req) {
         (!is_allowed(app, me, to) || !is_allowed(app, other, my_id))) {
         json_object_put(other); json_object_put(me); error_reply(app, 403, "recipient has not approved the transfer");
     }
-    J *queue = field(other, "messages");
-    if (!queue || !json_object_is_type(queue, json_type_array) || json_object_array_length(queue) >= MAX_QUEUE) {
+    J *queue = live_signal_queue(app, field(other, "messages"));
+    if (json_object_array_length(queue) >= MAX_QUEUE) {
+        json_object_put(queue);
         json_object_put(other); json_object_put(me); error_reply(app, 429, "recipient signal queue is full");
     }
     /* Limit JSON queue bytes, not just message count. Include the envelope
        and JSON array delimiters, not only the user-supplied signal body. */
     J *msg = json_object_new_object();
+    char generated_id[25];
+    if (!request_id && !random_hex(generated_id, 12)) {
+        json_object_put(queue); json_object_put(msg); json_object_put(other); json_object_put(me);
+        error_reply(app, 503, "secure randomness unavailable");
+    }
+    addstr(msg, "id", request_id ? request_id : generated_id);
+    addint(msg, "at", (int64_t)app->now_time);
     addstr(msg, "from", my_id); addstr(msg, "kind", kind);
     json_object_object_add(msg, "body", json_object_get(body));
     size_t queued_bytes = strlen(json_object_to_json_string_ext(queue, JSON_C_TO_STRING_PLAIN));
     size_t new_bytes = strlen(json_object_to_json_string_ext(msg, JSON_C_TO_STRING_PLAIN));
     if (queued_bytes + new_bytes + (json_object_array_length(queue) ? 1 : 0) > MAX_QUEUE_BYTES) {
-        json_object_put(msg); json_object_put(other); json_object_put(me);
+        json_object_put(queue); json_object_put(msg); json_object_put(other); json_object_put(me);
         error_reply(app, 429, "recipient signal queue is full");
     }
     if (!begin_peer_transaction(app, other, me)) {
-        json_object_put(msg); json_object_put(other); json_object_put(me);
+        json_object_put(queue); json_object_put(msg); json_object_put(other); json_object_put(me);
         error_reply(app, 503, "state unavailable");
     }
+    json_object_object_add(other, "messages", queue);
+    remember_signal_request(app, me, request_id, to, kind, body);
     if (!strcmp(kind, "invite")) pending_update(app, other, my_id, 1);
     if (!strcmp(kind, "accept")) { pending_update(app, me, to, 0); allow(app, me, to); allow(app, other, my_id); }
     if (!strcmp(kind, "decline")) pending_update(app, me, to, 0);

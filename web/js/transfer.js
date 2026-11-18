@@ -5,6 +5,24 @@ import { $, show, notice, progress } from './ui.js';
 import { signal } from './api.js';
 import { renderPeers } from './discovery.js';
 
+export const UI_UPDATE_INTERVAL_MS = 100;
+export const RECEIVE_SEGMENT_BYTES = 1024 * 1024;
+
+export function transferProgress(t, title, current, total, details, force = false) {
+  const now = Date.now();
+  if (!force && t.lastUiAt !== undefined && now - t.lastUiAt < UI_UPDATE_INTERVAL_MS) return;
+  t.lastUiAt = now;
+  progress(title, current, total, details);
+}
+
+function flushReceiveSegment(t) {
+  if (!t.received?.length) return;
+  if (!t.parts) t.parts = [];
+  t.parts.push(new Blob(t.received, { type: 'application/octet-stream' }));
+  t.received = [];
+  t.segmentBytes = 0;
+}
+
 export function clearIncoming() {
   const request = state.incoming;
   if (request?.timeout) clearTimeout(request.timeout);
@@ -24,6 +42,8 @@ export function resetTransfer() {
   const t = state.active;
   if (t) {
     if (t.timeout) clearTimeout(t.timeout);
+    t.received = [];
+    t.parts = [];
     if (t.channel && t.channel.readyState !== 'closed') t.channel.close();
     if (t.pc) t.pc.close();
   }
@@ -46,10 +66,18 @@ export async function cancelTransfer(reason = '전송이 취소되었습니다.'
 // allocate fixed visual slots, and reuse existing DOM nodes during polling.
 
 export function armTimeout(active) {
-  if (active.timeout) clearTimeout(active.timeout);
-  active.timeout = setTimeout(() => {
-    if (state.active === active) void cancelTransfer('연결 시간이 초과되었습니다.');
-  }, 30000);
+  active.deadline = Date.now() + 30000;
+  if (active.timeout) return;
+  const check = () => {
+    active.timeout = null;
+    if (state.active !== active || active.finished) return;
+    if (Date.now() >= active.deadline) {
+      void cancelTransfer('연결 시간이 초과되었습니다.');
+      return;
+    }
+    active.timeout = setTimeout(check, Math.max(1, active.deadline - Date.now()));
+  };
+  active.timeout = setTimeout(check, 30000);
 }
 
 export async function beginInvite(peer, file) {
@@ -57,7 +85,7 @@ export async function beginInvite(peer, file) {
   if (!file) return;
   if (file.size > LIMIT) { notice('파일은 최대 64 MiB까지 전송할 수 있습니다.', true); return; }
   cleanDownload();
-  const active = { peerId: peer.id, peerName: peer.name, role: 'sender', file, pc: null, channel: null, candidates: [], received: [], bytes: 0, timeout: null };
+  const active = { peerId: peer.id, peerName: peer.name, role: 'sender', file, pc: null, channel: null, candidates: [], received: [], parts: [], segmentBytes: 0, bytes: 0, timeout: null, phase: 'awaiting-approval' };
   state.active = active;
   wakePoll();
   armTimeout(active); renderPeers();
@@ -71,7 +99,7 @@ export async function acceptIncoming() {
   if (!request || state.active) return;
   clearIncoming();
   const t = { peerId: request.from, peerName: request.sender, role: 'receiver',
-    offer: request.body, pc: null, channel: null, candidates: [], received: [], bytes: 0, timeout: null };
+    offer: request.body, pc: null, channel: null, candidates: [], received: [], parts: [], segmentBytes: 0, bytes: 0, timeout: null, phase: 'awaiting-offer' };
   state.active = t;
   wakePoll();
   armTimeout(t); renderPeers();
@@ -96,7 +124,7 @@ export function installChannel(t, channel) {
     if (t.role === 'sender') void sendFile(t).catch((err) => {
       if (state.active === t) void cancelTransfer(err.message);
     });
-    else progress('수신 중', 0, t.offer.size, `${t.peerName}에서 파일을 받습니다.`);
+    else { t.phase = 'receiving'; progress('수신 중', 0, t.offer.size, `${t.peerName}에서 파일을 받습니다.`); }
   };
   channel.onmessage = (ev) => {
     if (state.active !== t) return;
@@ -111,6 +139,8 @@ export function installChannel(t, channel) {
 
 export async function sendFile(t) {
   const channel = t.channel;
+  if (state.active !== t || channel.readyState !== 'open') throw Error('전송이 중단되었습니다.');
+  t.phase = 'sending';
   channel.send(JSON.stringify({ type: 'meta', name: t.file.name, size: t.file.size }));
   for (let offset = 0; offset < t.file.size; offset += CHUNK) {
     if (state.active !== t || channel.readyState !== 'open') throw Error('전송이 중단되었습니다.');
@@ -120,24 +150,30 @@ export async function sendFile(t) {
     }
     const bytes = await t.file.slice(offset, Math.min(t.file.size, offset + CHUNK)).arrayBuffer();
     channel.send(bytes);
+    t.bytes = Math.min(t.file.size, offset + bytes.byteLength);
     armTimeout(t);
-    progress('파일 전송 중', Math.min(t.file.size, offset + bytes.byteLength), t.file.size, `${t.peerName}에 직접 전송 중`);
+    transferProgress(t, '파일 전송 중', t.bytes, t.file.size, `${t.peerName}에 직접 전송 중`);
   }
+  if (state.active !== t || channel.readyState !== 'open') throw Error('전송이 중단되었습니다.');
+  t.phase = 'awaiting-ack';
   channel.send(JSON.stringify({ type: 'end' }));
-  progress('저장 확인 대기', t.file.size, t.file.size, '수신 기기에서 전송 완료를 확인합니다.');
+  transferProgress(t, '저장 확인 대기', t.file.size, t.file.size, '수신 기기에서 전송 완료를 확인합니다.', true);
   armTimeout(t);
 }
 
 export function receiveMessage(t, data) {
   if (typeof data === 'string') {
     const msg = JSON.parse(data);
-    if (msg.type === 'meta' && t.role === 'receiver' && !t.started) {
+    if (msg.type === 'meta' && t.role === 'receiver' && t.phase === 'receiving' && !t.started) {
       if (msg.name !== t.offer.name || msg.size !== t.offer.size) throw Error('요청 정보와 전송 파일이 다릅니다.');
       t.started = true; return;
     }
-    if (msg.type === 'end' && t.role === 'receiver' && t.started && t.bytes === t.offer.size) {
-      const blob = new Blob(t.received, { type: 'application/octet-stream' });
-      t.received = [];
+    if (msg.type === 'end' && t.role === 'receiver' && t.phase === 'receiving' &&
+        t.started && t.bytes === t.offer.size) {
+      flushReceiveSegment(t);
+      const blob = new Blob(t.parts, { type: 'application/octet-stream' });
+      t.parts = [];
+      t.phase = 'complete';
       cleanDownload(); state.blobUrl = URL.createObjectURL(blob);
       $('download-link').href = state.blobUrl;
       $('download-link').download = t.offer.name;
@@ -153,13 +189,19 @@ export function receiveMessage(t, data) {
       notice('수신이 완료되었습니다. 파일 저장 버튼을 눌러주세요.');
       setTimeout(() => { if (state.active === t) resetTransfer(); }, 800); return;
     }
-    if (msg.type === 'ack' && t.role === 'sender') {
+    if (msg.type === 'ack' && t.role === 'sender' && t.phase === 'awaiting-ack' &&
+        t.bytes === t.file.size) {
+      t.phase = 'complete';
       t.finished = true; notice('파일 전송이 완료되었습니다.'); resetTransfer(); return;
     }
     throw Error('예상하지 못한 전송 메시지입니다.');
   }
-  if (t.role !== 'receiver' || !t.started || t.finished || !(data instanceof ArrayBuffer) ||
+  if (t.role !== 'receiver' || t.phase !== 'receiving' || !t.started || t.finished ||
+      !(data instanceof ArrayBuffer) || data.byteLength === 0 || data.byteLength > CHUNK ||
       t.bytes + data.byteLength > t.offer.size) throw Error('잘못된 파일 데이터가 도착했습니다.');
-  t.received.push(data); t.bytes += data.byteLength; armTimeout(t);
-  progress('파일 수신 중', t.bytes, t.offer.size, `${t.peerName}에서 직접 전송 중`);
+  t.received.push(data); t.bytes += data.byteLength;
+  t.segmentBytes = (t.segmentBytes || 0) + data.byteLength;
+  if (t.segmentBytes >= RECEIVE_SEGMENT_BYTES) flushReceiveSegment(t);
+  armTimeout(t);
+  transferProgress(t, '파일 수신 중', t.bytes, t.offer.size, `${t.peerName}에서 직접 전송 중`);
 }

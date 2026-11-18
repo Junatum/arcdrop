@@ -2,7 +2,7 @@
 
 **Languages:** [English](DEVELOPMENT.md) | [한국어](ko/DEVELOPMENT.md)
 
-This guide describes ArcDrop **0.1.0-r17** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
+This guide describes ArcDrop **0.1.0-r18** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
 
 ## 1. Overview
 
@@ -244,3 +244,32 @@ sh tools/coverage.sh
 The script builds an instrumented **host-test** executable, runs the CGI
 regression tests and removes temporary `.gcda`/`.gcov` files. It does not
 change the OpenWrt package or collect coverage from a production device.
+
+
+## 5–6. Reliable signaling and transfer performance (0.1.0-r18)
+
+The browser sends `acks` in the next `poll` only after a signal was handled
+(or a terminal handling error was recorded). Old poll clients omit the array
+and preserve their original one-shot behavior. An outgoing `signal` request
+carries a cryptographically generated `requestId` in secure browsers and
+retries that exact ID on transient failures. The CGI bounds the queue to
+32 entries / 64 KiB and expires signals after 45 seconds. Payload bytes
+are never part of these HTTP messages.
+
+DataChannel transfer phases now reject premature final acknowledgements.
+Progress labels refresh at most once per 100ms while the transfer remains
+active, with immediate final updates. The receiver accumulates at most 1 MiB
+of incoming ArrayBuffer references before combining them into Blob segments;
+actual total browser memory usage still depends on the browser's Blob
+implementation. No File System Access API or external library is required.
+
+To inspect CGI timing on real OpenWrt hardware, open the browser Network panel
+and inspect `Server-Timing` in the response to the ArcDrop CGI JSON actions.
+`cgi` includes request parsing and dispatch; `lock` measures acquiring the
+CGI state lock. Use sustained multi-device polling to establish p50/p95
+latency on the target router; host compilation alone does not establish those
+figures.
+
+Run `python3 tests/test_cgi.py`, `node --test tests/*.mjs`, `shellspec`, and
+`sh tools/lint.sh` before publishing a new revision. Real two-browser WebRTC
+E2E, iOS Safari and OpenWrt target builds remain required before production.

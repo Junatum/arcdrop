@@ -22,6 +22,8 @@
 #define MAX_PER_IP 4
 #define MAX_QUEUE 32
 #define MAX_QUEUE_BYTES (64 * 1024)
+#define SIGNAL_TTL 45
+#define MAX_SIGNAL_HISTORY 32
 #define MAX_PEER_FILE (96 * 1024)
 #define CLEANUP_INTERVAL 15
 #define MAX_BODY 16384
@@ -37,6 +39,8 @@ typedef struct {
     char client_ip[INET_ADDRSTRLEN];
     int lock_fd;
     time_t now_time;
+    uint64_t started_us;
+    uint64_t lock_wait_us;
 } ArcContext;
 
 typedef void (*PeerVisitor)(const char *id, J *peer, void *user_data);
@@ -75,6 +79,16 @@ int recover_peer_transaction(ArcContext *app);
 int maybe_cleanup_peers(ArcContext *app);
 int begin_peer_transaction(ArcContext *app, J *first, J *second);
 int finish_peer_transaction(ArcContext *app, J *first, J *second);
+
+/* Reliable signaling metadata with explicit acknowledgement. */
+int valid_signal_acks(J *req, int *ack_mode);
+J *poll_signal_queue(ArcContext *app, J *peer, J *req, int ack_mode);
+J *live_signal_queue(ArcContext *app, J *queue);
+int seen_signal_request(ArcContext *app, J *me, const char *request_id, const char *to, const char *kind, J *body);
+void remember_signal_request(ArcContext *app, J *me, const char *request_id, const char *to, const char *kind, J *body);
+
+/* Lightweight timing, with no file contents or device identifiers. */
+uint64_t monotonic_us(void);
 
 /* Session lifecycle and peer discovery. */
 J *authenticate(ArcContext *app, J *req);

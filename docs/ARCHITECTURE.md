@@ -26,7 +26,7 @@ The router serves the HTML/CSS/JS/SVG and exchanges **signaling metadata only**;
 | LAN access | `src/lan.c` | Same-origin HTTPS and trusted LAN checks |
 | Peer storage | `src/peer_store.c` | Volatile JSON metadata, locking contract and expiry |
 | Sessions and discovery | `src/session.c` | Registration, session checks and peer presence |
-| WebRTC signaling | `src/signaling.c` | Consent validation, SDP/ICE metadata and bounded queue |
+| WebRTC signaling | `src/signaling.c`, `src/signal_queue.c` | Consent validation, SDP/ICE metadata, acknowledgement and bounded queue |
 | Shared CGI contract | `src/arcdrop.h` | Explicit request context and module interfaces |
 | Browser bootstrap | `web/app.js` | ES module entry, browser event listeners and startup |
 | Browser modules | `web/js/{core,api,ui,discovery,transfer,signaling,session}.js` | Shared state, CGI API, UI, discovery, file transfer, WebRTC negotiation and session polling |
@@ -111,3 +111,37 @@ transfer/discovery import cycle and keeping module loading straightforward.
 OpenWrt installs the exact `web/js/*.js` module set into
 `/www/arcdrop/js/` and serves it with the same HTTPS origin and CSP as the
 entry point. The separate demo remains uninstalled.
+
+## Reliable signaling and browser performance (0.1.0-r18)
+
+Browsers supporting the new protocol send `acks: []` with each `poll` request.
+Signaling responses contain a short random `id` and an enqueue timestamp `at`.
+The CGI keeps messages until a subsequent poll supplies matching IDs in its
+`acks` array, redelivering unanswered messages after HTTP response loss.
+The browser tracks up to 128 recent IDs per tab to avoid repeating UI/WebRTC
+side effects. Each acknowledgement batch is limited to 32 IDs, and queued
+messages expire after 45 seconds. Older clients omitting `acks` still drain
+once, exactly as before. Credentials, consent and same-origin checks remain
+mandatory; an ACK is not authorization for any signaling action.
+
+New outgoing signals use a random `requestId`, reused for up to two retries
+on transient transport failures. The sender's bounded, expiring history makes
+successful retries idempotent, including an already-consumed acceptance.
+Attempting to reuse an ID for a different target, kind or body is rejected.
+No separate daemon or persistent service was introduced.
+
+The DataChannel sender now accepts file-complete `ack` only after the `end`
+frame was sent and the complete file has been queued. The receiver validates
+16 KiB chunk boundaries and reconstructs a completed Blob from 1 MiB
+segments. This bounds retained **JavaScript ArrayBuffer references** per
+segment, but total memory/Blob allocation remains browser-dependent. It does
+not yet use direct-to-disk streaming, so 64 MiB transfers still require a
+memory-capable browser. Progress UI updates are limited to about 100ms and
+final completion forces an immediate update. A deadline timer replaces
+per-chunk timer churn.
+
+The CGI also includes `Server-Timing: cgi;dur=..., lock;dur=...` in its
+responses (milliseconds). These fields contain no peer identifiers, tokens,
+filenames or contents and are suitable for measuring lock contention from
+browser developer tools. Measurements are observations, not performance
+benchmarks of the supported OpenWrt devices.

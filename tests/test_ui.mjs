@@ -346,7 +346,7 @@ test('수신 완료 후 상대방이 채널과 연결을 닫아도 오류 알림
   context.testChannel = channel;
   vm.runInContext(`
     const t = {peerId:'peer-id',peerName:'Mac',role:'receiver',
-      offer:{name:'sample.txt',size:3},started:true,bytes:3,
+      offer:{name:'sample.txt',size:3},started:true,phase:'receiving',bytes:3,
       received:[new Uint8Array([65,66,67]).buffer],candidates:[],channel:testChannel,finished:false};
     state.active = t;
     createConnection(t);
@@ -370,7 +370,7 @@ test('송신 확인 ACK 이후 연결 종료도 오류 메시지를 발생시키
   context.testChannel = channel;
   vm.runInContext(`
     const t = {peerId:'peer-id',peerName:'iPad',role:'sender',
-      pc:null,channel:testChannel,candidates:[],finished:false};
+      pc:null,channel:testChannel,candidates:[],finished:false,phase:'awaiting-ack',bytes:3,file:{size:3}};
     state.active=t;
     createConnection(t);
     installChannel(t,testChannel);
@@ -453,7 +453,7 @@ test('Mac 송신 Offer는 로컬 ICE 수집 완료 후 후보를 포함해 한 �
 test('iPad 수신 Answer는 ICE 완료 후 전송하고 실패한 구형 후보도 다른 후보를 막지 않는다', async () => {
   const { context, signals, warnings } = gatheringRuntime();
   const promise = vm.runInContext(`(() => {
-    state.active = { peerId: 'mac', role: 'receiver', candidates: [
+    state.active = { peerId: 'mac', role: 'receiver', phase:'awaiting-offer', candidates: [
       {candidate: 'bad'}, {candidate: 'good'}
     ], finished: false };
     return handleSignal({from:'mac', kind:'offer', body:{
@@ -523,4 +523,74 @@ test('주변 기기가 없어도 중복 안내 문구 없이 탐지 상태만 �
   assert.doesNotMatch(css, /\.empty-hint|\[data-empty=/);
   assert.doesNotMatch(app, /dataset\.empty/);
   assert.doesNotMatch(demoJs, /dataset\.empty/);
+});
+
+test('전송 상태를 확인해 조기 ACK와 잘못된 청크를 거부한다', () => {
+  const { context } = createBrowserRuntime();
+  context.testChannel = { readyState:'open',send() {},close() {} };
+  vm.runInContext(`state.active = {
+    peerId:'sender',role:'sender',phase:'sending',bytes:3,file:{size:3},
+    channel:testChannel,received:[],parts:[],candidates:[]
+  }`, context);
+  assert.throws(() => vm.runInContext("receiveMessage(state.active, JSON.stringify({type:'ack'}))", context),
+    /예상하지 못한/);
+  assert.equal(vm.runInContext('state.active.finished', context), undefined);
+  vm.runInContext(`state.active = {
+    peerId:'receiver',role:'receiver',phase:'receiving',started:true,bytes:0,
+    offer:{name:'a.txt',size:20000},channel:testChannel,
+    received:[],parts:[],candidates:[]
+  }`, context);
+  assert.throws(() => vm.runInContext('receiveMessage(state.active, new ArrayBuffer(16385))', context),
+    /잘못된 파일 데이터/);
+});
+
+test('수신 메모리는 1MiB씩 Blob 구간으로 묶고 원본 데이터 순서를 보존한다', async () => {
+  const { context } = createBrowserRuntime();
+  const buffers = [];
+  context.capture = buffers;
+  context.URL = {createObjectURL(blob) { buffers.push(blob); return 'blob:segments'; }, revokeObjectURL() {}};
+  context.testChannel = { readyState:'open', send() {}, close() {} };
+  vm.runInContext(`state.active = {
+    peerId:'mac',peerName:'Mac',role:'receiver',phase:'receiving',started:true,
+    bytes:0,offer:{name:'large.bin',size:1048579},channel:testChannel,
+    received:[],parts:[],candidates:[],timeout:null
+  };`, context);
+  vm.runInContext(`for(let i=0;i<64;i++) {
+    const chunk = new Uint8Array(16384);chunk.fill(i);receiveMessage(state.active,chunk.buffer);
+  }`, context);
+  assert.equal(vm.runInContext('state.active.parts.length', context), 1);
+  assert.equal(vm.runInContext('state.active.received.length', context), 0);
+  vm.runInContext(`receiveMessage(state.active,new Uint8Array([7,8,9]).buffer);
+    receiveMessage(state.active,JSON.stringify({type:'end'}));`, context);
+  assert.equal(buffers.length, 1);
+  assert.equal(buffers[0].size, 1048579);
+  const bytes = new Uint8Array(await buffers[0].arrayBuffer());
+  assert.deepEqual([...bytes.slice(0, 3)], [0, 0, 0]);
+  assert.deepEqual([...bytes.slice(63*16384, 63*16384+3)], [63, 63, 63]);
+  assert.deepEqual([...bytes.slice(-3)], [7, 8, 9]);
+  assert.equal(vm.runInContext('state.active.parts.length', context), 0);
+});
+
+test('전송 진행률은 100ms마다 갱신하며 완료 상태는 즉시 표시한다', () => {
+  const { context, get } = createBrowserRuntime();
+  let now = 1000;
+  context.Date = {now:() => now};
+  context.transfer = {lastUiAt:undefined};
+  vm.runInContext(`transferProgress(transfer,'진행',100,1000,'상세')`, context);
+  assert.equal(get('transfer-percent').textContent, '10%');
+  now += 30;
+  vm.runInContext(`transferProgress(transfer,'진행',500,1000,'상세')`, context);
+  assert.equal(get('transfer-percent').textContent, '10%');
+  now += 70;
+  vm.runInContext(`transferProgress(transfer,'진행',600,1000,'상세')`, context);
+  assert.equal(get('transfer-percent').textContent, '60%');
+  vm.runInContext(`transferProgress(transfer,'완료',1000,1000,'완료',true)`, context);
+  assert.equal(get('transfer-percent').textContent, '100%');
+});
+
+test('활발한 청크 전송 중에는 매 청크마다 새 타이머를 생성하지 않는다', () => {
+  const { context, timers } = createBrowserRuntime();
+  vm.runInContext(`state.active = {deadline:0,timeout:null};
+    for(let i=0;i<4096;i++) armTimeout(state.active);`, context);
+  assert.equal(timers.length, 1);
 });

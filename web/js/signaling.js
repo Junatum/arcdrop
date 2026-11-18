@@ -116,8 +116,12 @@ export async function handleSignal(message) {
   if (kind === 'decline' && t?.peerId === from) { await cancelTransfer('상대방이 파일 전송을 거절했습니다.', false); return; }
   if (kind === 'bye' && t?.peerId === from) { await cancelTransfer('상대방이 전송을 종료했습니다.', false); return; }
   if (!t || t.peerId !== from) return;
-  if (kind === 'accept' && t.role === 'sender' && !t.pc) { armTimeout(t); await makeOffer(t); return; }
-  if (kind === 'offer' && t.role === 'receiver' && !t.pc && body?.sdp?.type === 'offer') {
+  if (kind === 'accept' && t.role === 'sender' && t.phase === 'awaiting-approval' && !t.pc) {
+    t.phase = 'negotiating'; armTimeout(t); await makeOffer(t); return;
+  }
+  if (kind === 'offer' && t.role === 'receiver' && t.phase === 'awaiting-offer' &&
+      !t.pc && body?.sdp?.type === 'offer') {
+    t.phase = 'negotiating';
     const pc = createConnection(t);
     await pc.setRemoteDescription(body.sdp);
     await addPendingCandidates(t);
@@ -126,7 +130,8 @@ export async function handleSignal(message) {
     if (state.active === t) await signal(t.peerId, 'answer', { sdp });
     return;
   }
-  if (kind === 'answer' && t.role === 'sender' && t.pc && body?.sdp?.type === 'answer') {
+  if (kind === 'answer' && t.role === 'sender' && t.phase === 'negotiating' &&
+      t.pc && !t.pc.remoteDescription && body?.sdp?.type === 'answer') {
     await t.pc.setRemoteDescription(body.sdp);
     await addPendingCandidates(t); return;
   }

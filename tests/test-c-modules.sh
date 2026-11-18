@@ -22,7 +22,7 @@ listed = re.search(r'^ARCDROP_SOURCES:=(.+)$', mk, re.M)
 require(listed, 'OpenWrt C 소스 목록이 없습니다')
 files = set(listed.group(1).split())
 require(files == {p.name for p in src.glob('*.c')}, 'C 모듈이 빌드에서 누락되거나 중복됩니다')
-require(len(files) == 7, 'CGI가 지정된 7개 소스 모듈로 구성되어야 합니다')
+require(len(files) == 8, 'CGI가 지정된 8개 소스 모듈로 구성되어야 합니다')
 require('$(addprefix ./src/,$(ARCDROP_SOURCES)) ./src/arcdrop.h' in mk,
         '빌드 준비에서 전체 C 모듈과 공통 헤더를 복사해야 합니다')
 require('$(addprefix $(PKG_BUILD_DIR)/,$(ARCDROP_SOURCES))' in mk,
@@ -47,6 +47,7 @@ for name, required in {
     'session.c': ('authenticate(', 'create_session(', 'list_peers('),
     'signaling.c': ('pending_has(', 'signal_body_ok(', 'handle_signal('),
     'json_helpers.c': ('/dev/urandom', 'is_hex(', 'json_object_new_string'),
+    'signal_queue.c': ('poll_signal_queue(', 'valid_signal_acks(', 'seen_signal_request('),
 }.items():
     content = (src / name).read_text(encoding='utf-8')
     require(all(marker in content for marker in required), f'{name} 책임 분리가 누락되었습니다')

@@ -49,13 +49,15 @@ static void handle(ArcContext *app, const char *action, J *req) {
             (has_busy && (!busy || !json_object_is_type(busy, json_type_boolean)))) {
             json_object_put(me); error_reply(app, 400, "invalid presence flags");
         }
+        int ack_mode = 0;
+        if (!valid_signal_acks(req, &ack_mode)) {
+            json_object_put(me); error_reply(app, 400, "invalid signal acknowledgements");
+        }
         addint(me, "lastPoll", (int64_t)app->now_time);
         addbool(me, "visible", visible ? json_object_get_boolean(visible) : 1);
         addbool(me, "busy", busy ? json_object_get_boolean(busy) : 0);
         J *out = json_object_new_object();
-        J *messages = field(me, "messages");
-        json_object_object_add(out, "messages", messages ? json_object_get(messages) : json_object_new_array());
-        json_object_object_add(me, "messages", json_object_new_array());
+        json_object_object_add(out, "messages", poll_signal_queue(app, me, req, ack_mode));
         if (!store_peer(app, me)) { json_object_put(out); json_object_put(me); error_reply(app, 503, "state unavailable"); }
         json_object_put(me); respond(app, 200, out);
     }
@@ -65,6 +67,7 @@ static void handle(ArcContext *app, const char *action, J *req) {
 int main(void) {
     ArcContext context = {.state_dir = STATE_DIR, .lock_fd = -1};
     ArcContext *app = &context;
+    app->started_us = monotonic_us();
     const char *method = getenv("REQUEST_METHOD"), *query = getenv("QUERY_STRING");
     const char *https = getenv("HTTPS"), *length = getenv("CONTENT_LENGTH");
     const char *type = getenv("CONTENT_TYPE");
@@ -111,9 +114,11 @@ int main(void) {
     int lock_length = snprintf(lock_path, sizeof(lock_path), "%s/.lock", app->state_dir);
     if (lock_length < 0 || (size_t)lock_length >= sizeof(lock_path))
         error_reply(app, 503, "state lock unavailable");
+    uint64_t lock_start = monotonic_us();
     app->lock_fd = open(lock_path, O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
     if (app->lock_fd < 0 || !state_lock_ok(app->lock_fd) ||
         flock(app->lock_fd, LOCK_EX) != 0) error_reply(app, 503, "state lock unavailable");
+    app->lock_wait_us = monotonic_us() - lock_start;
     /* Recover an interrupted two-peer update before any authentication. */
     if (!recover_peer_transaction(app)) error_reply(app, 503, "state recovery unavailable");
     if (!maybe_cleanup_peers(app)) error_reply(app, 503, "state cleanup unavailable");

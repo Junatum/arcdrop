@@ -3,6 +3,26 @@
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
 
+## 0.1.0-r18 (2026-11-18)
+
+### Fixed
+- Keep unacknowledged WebRTC signaling messages until the receiving browser confirms processing, avoiding lost invites or SDP after an interrupted HTTP response.
+- Reject premature DataChannel transfer-complete acknowledgements and out-of-order file chunks.
+
+### Improved
+- Add bounded signal IDs, duplicate-request protection, short-lived message retry and automatic expiry while preserving legacy one-shot polling.
+- Reduce repeated transfer UI updates and timer resets; group received chunks into 1 MiB Blob segments to limit retained JavaScript buffers.
+- Expose non-sensitive CGI and lock-wait timing through the standard Server-Timing response header.
+
+### Compatibility
+- Keep the LAN-only HTTPS/consent policy, 64 MiB file limit, 16 KiB DataChannel chunks, no STUN/TURN and no file payload storage on the router.
+- Preserve older clients that do not send a poll acknowledgement list and continue supporting browsers without direct-to-disk save APIs.
+
+### Tests
+- Verify lost-response redelivery, idempotent invite/accept retries, acknowledgement validation, message expiry and existing session protections.
+- Test browser duplicate suppression, transfer phase checks, segmented receive integrity and progress/timer throttling.
+
+
 ## 0.1.0-r17 (2026-11-17)
 
 ### Improved

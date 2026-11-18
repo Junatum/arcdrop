@@ -325,6 +325,104 @@ class ArcDropCGITests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertIn('invalid signal', result['error'])
 
+    def test_ACK_폴링은_응답손실_메시지를_재전달하고_확인후_삭제한다(self):
+        a, b = self.session('Mac'), self.session('iPad')
+        first = 'a' * 24
+        status, _ = self.call('signal', {**a, 'to': b['id'], 'kind': 'invite',
+            'requestId': first, 'body': {'name': 'photo.jpg', 'size': 10}})
+        self.assertEqual(status, 200)
+        status, reply = self.call('poll', {**b, 'acks': []})
+        self.assertEqual(status, 200)
+        self.assertEqual(reply['messages'][0]['id'], first)
+        self.assertEqual(reply['messages'][0]['at'], self.time)
+        # Simulate a lost browser response: without an ACK the queue remains.
+        self.assertEqual(self.call('poll', {**b, 'acks': []})[1]['messages'], reply['messages'])
+        self.assertEqual(self.call('poll', {**b, 'acks': [first]})[1]['messages'], [])
+        self.assertEqual(self.call('poll', {**b, 'acks': [first]})[1]['messages'], [])
+
+    def test_ACK_배치_중_확인한_메시지만_제거한다(self):
+        a, b = self.session('Mac'), self.session('iPad')
+        ids = ['a' * 24, 'b' * 24]
+        for i in range(2):
+            self.assertEqual(self.call('signal', {**a, 'to': b['id'], 'kind': 'invite',
+                'requestId': ids[i], 'body': {'name': f'{i}.txt', 'size': 1}})[0], 200)
+        status, payload = self.call('poll', {**b, 'acks': [ids[0]]})
+        self.assertEqual(status, 200)
+        self.assertEqual([m['id'] for m in payload['messages']], [ids[1]])
+        self.assertEqual(self.call('poll', {**b, 'acks': []})[1]['messages'], payload['messages'])
+        # Old clients keep the previous one-shot behavior for compatibility.
+        self.assertEqual(len(self.call('poll', b)[1]['messages']), 1)
+        self.assertEqual(self.call('poll', b)[1]['messages'], [])
+
+    def test_ACK_및_요청ID_유효성_검사를_수행한다(self):
+        a, b = self.session('Mac'), self.session('iPad')
+        for bad in (None, 'bad', ['wrong'], ['a' * 24] * 33, [1], {}):
+            with self.subTest(acks=bad):
+                status, _ = self.call('poll', {**b, 'acks': bad})
+                self.assertEqual(status, 400)
+        for bad in (None, 'wrong', [], 123, 'g' * 24):
+            with self.subTest(requestId=bad):
+                status, _ = self.call('signal', {**a, 'to': b['id'], 'kind': 'invite',
+                    'requestId': bad, 'body': {'name': 'a.txt', 'size': 2}})
+                self.assertEqual(status, 400)
+
+    def test_응답손실_시_동일_요청ID_재전송을_중복등록하지_않는다(self):
+        a, b = self.session('Mac'), self.session('iPad')
+        rid = 'c' * 24
+        invite = {**a, 'to': b['id'], 'kind': 'invite', 'requestId': rid,
+            'body': {'name': 'a.txt', 'size': 2}}
+        self.assertEqual(self.call('signal', invite)[0], 200)
+        self.assertEqual(self.call('signal', invite)[0], 200)
+        self.assertEqual(len(self.call('poll', {**b, 'acks': []})[1]['messages']), 1)
+        # Even after the receiver consumed it, retry remains idempotent.
+        self.assertEqual(self.call('poll', {**b, 'acks': [rid]})[1]['messages'], [])
+        self.assertEqual(self.call('signal', invite)[0], 200)
+        self.assertEqual(self.call('poll', {**b, 'acks': []})[1]['messages'], [])
+        accept = {**b, 'to': a['id'], 'kind': 'accept', 'body': {}, 'requestId': 'd' * 24}
+        self.assertEqual(self.call('signal', accept)[0], 200)
+        self.assertEqual(self.call('signal', accept)[0], 200)
+        self.assertEqual(len(self.call('poll', {**a, 'acks': []})[1]['messages']), 1)
+        conflict = {**invite, 'kind': 'decline', 'body': {}}
+        self.assertEqual(self.call('signal', conflict)[0], 409)
+        changed_body = {**invite, 'body': {'name': 'changed.txt', 'size': 2}}
+        self.assertEqual(self.call('signal', changed_body)[0], 409)
+
+    def test_만료된_시그널링을_세션유지중_정리한다(self):
+        a, b = self.session('Mac'), self.session('iPad')
+        self.assertEqual(self.call('signal', {**a, 'to': b['id'], 'kind': 'invite',
+            'body': {'name': 'a.txt', 'size': 2}})[0], 200)
+        self.time += 38
+        self.assertEqual(self.call('heartbeat', a)[0], 200)
+        self.assertEqual(self.call('heartbeat', b)[0], 200)
+        self.time += 8
+        self.assertEqual(self.call('poll', {**b, 'acks': []})[1]['messages'], [])
+
+    def test_중간_저장_중단후_동일_ID_재시도는_한번만_전달한다(self):
+        a, b = self.session('A'), self.session('B')
+        request = {**a, 'to': b['id'], 'kind': 'invite', 'requestId': 'e' * 24,
+            'body': {'name': 'a.txt', 'size': 1}}
+        with self.assertRaises(AssertionError):
+            self.call('signal', request, env={'ARCDROP_TEST_CRASH_AFTER_FIRST': '1'})
+        self.assertEqual(self.call('signal', request)[0], 200)
+        self.assertEqual(self.call('signal', request)[0], 200)
+        delivered = self.call('poll', {**b, 'acks': []})[1]['messages']
+        self.assertEqual(len(delivered), 1)
+        self.assertEqual(delivered[0]['id'], 'e' * 24)
+
+    def test_CGI_응답에는_비식별_처리시간_계측을_포함한다(self):
+        session = self.session('A')
+        body = json.dumps(session).encode()
+        env = dict(os.environ, REQUEST_METHOD='POST', QUERY_STRING='action=heartbeat',
+            HTTPS='on', HTTP_ORIGIN='https://router.test', HTTP_HOST='router.test',
+            CONTENT_TYPE='application/json', CONTENT_LENGTH=str(len(body)),
+            REMOTE_ADDR='127.0.0.1', ARCDROP_TEST_STATE=self.tmp,
+            ARCDROP_TEST_NOW=str(self.time))
+        result = subprocess.run([str(BIN)], input=body, capture_output=True, env=env, check=True)
+        headers = result.stdout.decode().split('\r\n\r\n', 1)[0]
+        self.assertRegex(headers, r'Server-Timing: cgi;dur=\d+\.\d{3}, lock;dur=\d+\.\d{3}')
+        self.assertNotIn(session['token'], headers)
+        self.assertNotIn(session['id'], headers)
+
     def test_파일_본문_업로드는_허용하지_않는다(self):
         a, b = self.session('A'), self.session('B')
         for kind, body in [('file', {'data': 'c29tZSBieXRlcw=='}),

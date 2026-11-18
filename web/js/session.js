@@ -19,6 +19,22 @@ export const PEERS_IDLE_MS = 6500;
 
 export let connectPromise = null;
 
+// IDs stay in memory for this tab only. 128 entries bounds duplicate tracking.
+const seenSignals = new Set();
+let pendingAcks = [];
+
+export function resetSignalTracking() { seenSignals.clear(); pendingAcks = []; }
+
+export function acknowledgeSignal(id) {
+  if (typeof id !== 'string' || !/^[0-9a-f]{24}$/.test(id)) return;
+  if (!seenSignals.has(id)) {
+    if (seenSignals.size >= 128) seenSignals.delete(seenSignals.values().next().value);
+    seenSignals.add(id);
+  }
+  if (!pendingAcks.includes(id)) pendingAcks.push(id);
+}
+
+
 export function pollInterval() {
   if (discoveryBusy()) return POLL_ACTIVE_MS;
   return document.visibilityState === 'hidden' ? POLL_HIDDEN_MS : POLL_IDLE_MS;
@@ -89,10 +105,12 @@ export async function ensureSession() {
       catch (err) {
         if (!invalidSession(err)) throw err;
         state.session = null;
+        resetSignalTracking();
         persistSession(null);
       }
     }
     if (!state.session) {
+      resetSignalTracking();
       state.session = await api('register', profile);
       persistSession(state.session);
     }
@@ -115,21 +133,26 @@ export async function loop(loopId) {
     const session = state.session;
     let delay = pollInterval();
     try {
+      const acks = pendingAcks.slice(0, 32);
       const payload = await api('poll', {
-        visible: document.visibilityState !== 'hidden', busy: discoveryBusy(),
+        visible: document.visibilityState !== 'hidden', busy: discoveryBusy(), acks,
       });
       if (!state.running || state.loopId !== loopId || session !== state.session) return;
-      // A failed peer-list refresh must not abort a healthy WebRTC transfer.
-      // CGI poll consumes its message queue. Never discard the remaining
-      // messages just because one negotiation step failed (e.g. WebKit SDP).
+      // The server removes only acknowledged messages. A lost response may
+      // redeliver the same ID; never repeat its UI or WebRTC side effects.
+      pendingAcks = pendingAcks.filter((id) => !acks.includes(id));
       for (const message of payload.messages || []) {
+        if (message?.id && seenSignals.has(message.id)) {
+          acknowledgeSignal(message.id);
+          continue;
+        }
         try { await handleSignal(message); }
         catch (err) {
           console.warn('ArcDrop: signaling message failed', message?.kind || 'unknown', err?.message || err);
           if (state.active?.peerId === message?.from)
             await cancelTransfer(`연결 협상 실패: ${err?.message || '알 수 없는 오류'}`);
           else notice(`기기 연결 요청 처리 실패: ${err?.message || '알 수 없는 오류'}`, true);
-        }
+        } finally { acknowledgeSignal(message?.id); }
       }
       if (failures) notice('');
       failures = 0;
@@ -148,6 +171,7 @@ export async function loop(loopId) {
       if (invalidSession(err)) {
         state.running = false;
         state.session = null;
+        resetSignalTracking();
         persistSession(null);
         setConnectionStatus('error', '세션 복구 중');
         if (document.visibilityState !== 'hidden' && navigator.onLine !== false)

@@ -363,3 +363,79 @@ test('전송 중 SDP 협상 오류 발생 시 종료하고도 후속 메시지�
   assert.equal(evaluate(t, 'state.active'), null);
   assert.match(t.get('notice-text').textContent, /SDP rejected/);
 });
+
+test('ACK 폴링은 응답 재전달에서도 신호를 중복 실행하지 않는다', async () => {
+  const id = 'c'.repeat(24);
+  const t = setup({responses: {poll: {status:200, body: {messages: [
+    {id, from:'f'.repeat(24),kind:'candidate',body:{candidate:{candidate:'1'}}},
+  ]}}}});
+  await evaluate(t, 'ensureSession()');
+  t.context.handled = [];
+  evaluate(t, `handleSignal = async (message) => { handled.push(message.id); };
+    pollWait = async () => { state.running = false; };`);
+  await evaluate(t, '__realLoop(state.loopId)');
+  assert.deepEqual([...t.context.handled], [id]);
+  assert.deepEqual([...t.requests.at(-1).data.acks], []);
+  evaluate(t, 'state.running = true');
+  await evaluate(t, '__realLoop(state.loopId)');
+  assert.deepEqual([...t.context.handled], [id]);
+  assert.deepEqual([...t.requests.at(-1).data.acks], [id]);
+});
+
+test('실패한 신호 처리도 다른 신호를 막지 않고 ACK를 남긴다', async () => {
+  const first = 'a'.repeat(24), second = 'b'.repeat(24);
+  const t = setup({responses: {poll: {status:200, body:{messages:[
+    {id:first,from:'f'.repeat(24),kind:'failed',body:{}},
+    {id:second,from:'f'.repeat(24),kind:'next',body:{}},
+  ]}}}});
+  await evaluate(t, 'ensureSession()');
+  t.context.handled = [];
+  evaluate(t, `handleSignal = async (msg) => {
+    if (msg.kind === 'failed') throw Error('invalid SDP');
+    handled.push(msg.kind);
+  }; pollWait = async () => { state.running = false; };`);
+  await evaluate(t, '__realLoop(state.loopId)');
+  assert.deepEqual([...t.context.handled], ['next']);
+  assert.deepEqual([...evaluate(t, 'pendingAcks')], [first, second]);
+  evaluate(t, 'state.running = true');
+  await evaluate(t, '__realLoop(state.loopId)');
+  assert.deepEqual([...t.requests.at(-1).data.acks], [first, second]);
+  assert.deepEqual([...t.context.handled], ['next']);
+});
+
+test('신호 요청 ID는 보안 난수로 생성하고 요청 재전송에서 동일 ID를 유지한다', async () => {
+  const t = setup();
+  t.context.crypto = {getRandomValues(bytes) { bytes.fill(0xab); return bytes; }};
+  const id = evaluate(t, 'newSignalId()');
+  assert.equal(id, 'ab'.repeat(12));
+  await evaluate(t, 'ensureSession()');
+  evaluate(t, `state.session = {id:'a'.repeat(24), token:'b'.repeat(48)};`);
+  // Verify the actual CGI signal request uses the cryptographic key.
+  await evaluate(t, `signal('f'.repeat(24), 'invite', {name:'a.txt',size:1})`);
+  assert.equal(t.requests.at(-1).data.requestId, id);
+});
+
+test('503 응답 시 동일한 시그널링 요청 ID로만 재시도하고 권한 오류는 재시도하지 않는다', async () => {
+  const t = setup();
+  await evaluate(t, 'ensureSession()');
+  t.context.crypto = {getRandomValues(bytes) { bytes.fill(0xcd); return bytes; }};
+  const sent = [];
+  t.context.fetch = async (url, config) => {
+    sent.push(JSON.parse(config.body));
+    return {ok: sent.length > 1, status: sent.length > 1 ? 200 : 503,
+      json: async () => sent.length > 1 ? {} : {error: 'temporary unavailable'}};
+  };
+  await evaluate(t, "signal('f'.repeat(24), 'invite', {name:'a.txt',size:1})");
+  assert.equal(sent.length, 2);
+  assert.equal(sent[0].requestId, 'cd'.repeat(12));
+  assert.deepEqual(sent[0], sent[1], '재시도는 최초 요청 본문과 ID를 그대로 사용');
+
+  let denied = 0;
+  t.context.fetch = async () => {
+    denied++;
+    return {ok:false,status:403,json:async()=>({error:'forbidden'})};
+  };
+  await assert.rejects(evaluate(t, "signal('f'.repeat(24),'offer',{sdp:{type:'offer',sdp:'v=0'}})"),
+    /forbidden/);
+  assert.equal(denied, 1, '권한 오류를 재시도하면 안 됨');
+});
