@@ -59,6 +59,14 @@ class ArcDropE2EPortabilityTests(unittest.TestCase):
         self.assertNotIn('upload-artifact', workflow)
         self.assertNotIn('push:', workflow)
         self.assertNotIn('pull_request:', workflow)
+        ci = (ROOT / '.github/workflows/ci.yml').read_text(encoding='utf-8')
+        self.assertIn('  browser_smoke:', ci)
+        self.assertIn('python3 e2e/browser_e2e.py', ci)
+        self.assertIn('python3 -m playwright install --with-deps chromium', ci)
+        self.assertIn("ARCDROP_E2E_LARGE: '0'", ci)
+        self.assertNotIn('continue-on-error: true', ci)
+        self.assertIn('large_file:', workflow)
+        self.assertIn('ARCDROP_E2E_LARGE:', workflow)
 
     def test_브라우저_E2E는_운영_모듈만_제공하고_데모를_차단한다(self):
         self.assertIn("modules = ('core.js', 'api.js', 'ui.js'", SOURCE)
@@ -78,6 +86,11 @@ class ArcDropE2EPortabilityTests(unittest.TestCase):
         self.assertIn("'icon.svg'", SOURCE)
         self.assertIn("'ARCDROP_E2E_BROWSER'", SOURCE)
         self.assertIn('ignore_https_errors=True', SOURCE)
+        self.assertIn("send(a, b, 'empty.txt', b'')", SOURCE)
+        self.assertIn("a.locator('#cancel').click()", SOURCE)
+        self.assertIn("a.reload(timeout=20000)", SOURCE)
+        self.assertIn("directory / 'boundary-64MiB.bin'", SOURCE)
+        self.assertIn("('1', 'true', 'yes')", SOURCE)
         self.assertIn("REMOTE_ADDR='127.0.0.1'", SOURCE)
 
 

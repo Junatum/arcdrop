@@ -9,7 +9,7 @@
 [![License: GPL v3+](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 - License: **GPL-3.0-or-later**
-- Package: `smartsafehub-app-arcdrop` (`0.1.0-r18`).
+- Package: `smartsafehub-app-arcdrop` (`0.1.0-r19`).
 - Sender/receiver browsers transfer file bytes via encrypted **WebRTC RTCDataChannel**, with `iceServers: []` (no external STUN/TURN).
 - The router only serves a small local UI and passes bounded discovery/SDP/ICE metadata; **no file bytes are sent to or stored on the router**, cloud or local disk.
 - The signaling metadata (device name, IP, session token, SDP/ICE messages) temporarily resides in `/tmp/arcdrop` (tmpfs). Session metadata expires after 45 seconds of inactivity.
@@ -64,6 +64,8 @@ For host-only multi-language lint after installing the documented prerequisites,
 run `sh tools/lint.sh`. To measure the native CGI with GCC/gcov, run
 `sh tools/coverage.sh` (optional). See [development](docs/DEVELOPMENT.md).
 
+The default CI also runs a real Chromium/CGI browser smoke check. For host-only CGI concurrency measurements use `python3 tools/bench_cgi.py --clients 2,6,12 --polls 8`; these are **not router performance results**. See [release validation](docs/VALIDATION.md).
+
 As in Jarbis, `.shellspec` and `spec/contracts_spec.sh` run Korean-language contracts. CI first executes `sh tests/test-suite-integrity.sh` and `sh tests/test-openwrt-commands.sh` to catch missing tests and BusyBox violations. The tests compile a host **test-only** CGI binary, run the existing Python and Node.js tests, and check packaging, JavaScript syntax, and CHANGELOG formatting. No frontend build files are produced. Requires ShellSpec 0.28.1, Python 3, Node.js, a C compiler, and json-c development headers.
 
 On macOS with Homebrew, install the native CGI test dependency if it is missing:
@@ -89,7 +91,7 @@ sh tests/test-openwrt-commands.sh
 - File size capped at 64 MiB to constrain receiver memory on iOS/Safari and other browsers; one transfer at a time per browser.
 - HTTPS requires an already valid, trusted certificate. Public ACME issuance, DNS automation and SmartSafeHub Apps Store registration are **not implemented** in this standalone repository.
 - IPv4 trusted LAN only; IPv6, guest networks, large-file streaming-to-disk, multi-file queuing and remote transfer are not supported.
-- In-flight signaling can be lost on reload; sessions are transient. Only transfer content goes via WebRTC/DTLS; signaling TLS security depends on the uHTTPd certificate.
+- Signaling is acknowledged and bounded, but in-progress WebRTC file transfers do not survive a tab reload; session metadata remains transient. Only transfer content goes via WebRTC/DTLS; signaling TLS security depends on the uHTTPd certificate.
 
 ## Documentation
 

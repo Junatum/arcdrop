@@ -2,7 +2,7 @@
 
 **언어:** [English](../DEVELOPMENT.md) | [한국어](DEVELOPMENT.md)
 
-> 기준 소스: ArcDrop `0.1.0-r18`. 2026-11-18.
+> 기준 소스: ArcDrop `0.1.0-r19`. 2026-11-18.
 >
 > 개발·테스트·디자인 미리보기를 위한 문서입니다. **정적 UI 미리보기와 실제 WebRTC 전송 테스트는 별개**입니다.
 
@@ -38,7 +38,7 @@ arcdrop/
 ├── spec/contracts_spec.sh     # 한글 ShellSpec 계약
 ├── tests/                     # Python/Node.js/셸 단위·계약 테스트
 ├── tools/check_test_coverage.py
-├── e2e/browser_e2e.py         # 선택 실행 실브라우저 통합 테스트
+├── e2e/browser_e2e.py         # CI Chromium 및 선택형 브라우저 통합 테스트
 ├── docs/
 │   ├── DEVELOPMENT.md         # 영어 개발 가이드
 │   ├── ko/DEVELOPMENT.md      # 현재 문서 (한국어)
@@ -145,6 +145,16 @@ python3 -m playwright install chromium
 # Mac에서도 실행 가능 (json-c 및 C 컴파일러 필요)
 python3 e2e/browser_e2e.py
 ```
+
+기본 CI에서는 **Chromium의 실제 CGI/WebRTC 양방향 전송**을 필수로 실행합니다. Firefox/WebKit은 수동 실행용이며, 64MiB 경계는 `ARCDROP_E2E_LARGE=1 python3 e2e/browser_e2e.py`로 별도 실행합니다.
+
+2·6·12개 가상 기기로 호스트 CGI 처리 및 잠금 대기 시간을 확인하려면:
+
+```bash
+python3 tools/bench_cgi.py --clients 2,6,12 --polls 8
+```
+
+이 도구는 테스트용 CGI와 임시 저장소만 사용하며 세션 토큰은 출력하지 않습니다. 실제 공유기에서 자원을 측정할 때는 `tools/router-sample.sh`를 공유기에 직접 복사하여 `sh router-sample.sh 10 30`을 실행하세요(10초 간격, 30회). 공유기 파일·토큰은 조회하지 않습니다. macOS에서 이 스크립트를 직접 실행하면 안내 메시지와 함께 종료하며, ShellSpec에서는 모의 OpenWrt 명령으로 검증하므로 macOS의 `free` 명령이 필요하지 않습니다. OpenWrt에서 `free`가 없다면 `/proc/meminfo`를 사용합니다. **측정값은 공유기 실기기 성능이 아닙니다.** 실제 장비·iPad Safari 검증은 [검증 가이드](../VALIDATION.md)를 참고하세요.
 
 **현재 상태:** macOS Homebrew의 `json-c`, LibreSSL 및 Chrome/Chromium 실행 경로를 탐색하도록 개선했습니다. `brew install json-c pkgconf` 후 E2E를 실행할 수 있습니다. 다만 macOS 실브라우저 실행과 iPadOS 실기기 검증은 이 환경에서 확인하지 못했으므로 성공을 보장하지 않습니다. 선택형 테스트의 결과와 ShellSpec 계약 결과는 구분해 주세요.
 
@@ -299,7 +309,7 @@ GCC/gcov를 설치한 개발 환경에서 `sh tools/coverage.sh`를 실행하면
 실제 공유기 바이너리나 펌웨어에는 영향을 주지 않습니다.
 
 
-## 5·6차: 시그널링 안정성 및 브라우저 전송 최적화 (0.1.0-r18)
+## 5·6차: 시그널링 안정성 및 브라우저 전송 최적화 (0.1.0-r19)
 
 새 브라우저는 `poll` 호출에 `acks` 배열을 포함하고, 신호 처리 후 다음
 호출에서 메시지 ID를 확인합니다. HTTP 응답이 유실된 경우 서버는 확인되지

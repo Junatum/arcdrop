@@ -118,8 +118,11 @@ _Noreturn void handle_signal(ArcContext *app, J *me, J *req) {
     if ((!strcmp(kind, "accept") || !strcmp(kind, "decline")) && !pending_has(app, me, to)) {
         json_object_put(other); json_object_put(me); error_reply(app, 403, "no pending invitation");
     }
+    /* The inviter may withdraw consent before approval, but may not cancel
+       an arbitrary peer: the recipient must have this sender pending. */
+    int withdrawing_invite = !strcmp(kind, "bye") && pending_has(app, other, my_id);
     if (strcmp(kind, "invite") && strcmp(kind, "accept") && strcmp(kind, "decline") &&
-        (!is_allowed(app, me, to) || !is_allowed(app, other, my_id))) {
+        !withdrawing_invite && (!is_allowed(app, me, to) || !is_allowed(app, other, my_id))) {
         json_object_put(other); json_object_put(me); error_reply(app, 403, "recipient has not approved the transfer");
     }
     J *queue = live_signal_queue(app, field(other, "messages"));
@@ -154,6 +157,7 @@ _Noreturn void handle_signal(ArcContext *app, J *me, J *req) {
     if (!strcmp(kind, "invite")) pending_update(app, other, my_id, 1);
     if (!strcmp(kind, "accept")) { pending_update(app, me, to, 0); allow(app, me, to); allow(app, other, my_id); }
     if (!strcmp(kind, "decline")) pending_update(app, me, to, 0);
+    if (withdrawing_invite) pending_update(app, other, my_id, 0);
     json_object_array_add(queue, msg);
     if (!finish_peer_transaction(app, other, me)) {
         json_object_put(other); json_object_put(me); error_reply(app, 503, "state unavailable");

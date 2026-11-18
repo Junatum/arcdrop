@@ -6,6 +6,7 @@ For WebKit: ARCDROP_E2E_BROWSER=webkit python3 e2e/browser_e2e.py
 No external network, cloud backend, STUN/TURN or production TLS modifications.
 """
 # SPDX-License-Identifier: GPL-3.0-or-later
+import hashlib
 import mimetypes
 import os
 from pathlib import Path
@@ -129,7 +130,7 @@ class RouterHTTPHandler(BaseHTTPRequestHandler):
 
 
 class ArcDropBrowserTests(unittest.TestCase):
-    def test_양방향_전송과_거절_및_파일_미저장을_검증한다(self):
+    def test_양방향_빈파일_거절_취소_복구와_파일_미저장을_검증한다(self):
         with tempfile.TemporaryDirectory(prefix='arcdrop-e2e-') as tmp:
             directory = Path(tmp)
             os.chmod(directory, 0o700)
@@ -174,17 +175,30 @@ class ArcDropBrowserTests(unittest.TestCase):
                         def send(sender, receiver, name, payload):
                             with sender.expect_file_chooser() as chooser:
                                 sender.locator('.peer').first.click()
-                            chooser.value.set_files({'name': name, 'mimeType': 'application/octet-stream',
-                                                     'buffer': payload})
+                            if isinstance(payload, Path):
+                                chooser.value.set_files(str(payload))
+                            else:
+                                chooser.value.set_files({'name': name, 'mimeType': 'application/octet-stream',
+                                                         'buffer': payload})
                             receiver.locator('#incoming:not(.hidden)').wait_for(timeout=20000)
                             receiver.locator('#accept').click()
-                            receiver.locator('#download:not(.hidden)').wait_for(timeout=45000)
+                            receiver.locator('#download:not(.hidden)').wait_for(timeout=90000 if isinstance(payload, Path) else 45000)
                             with receiver.expect_download() as info:
                                 receiver.locator('#download-link').click()
                             received = directory / f'received-{name}'
                             info.value.save_as(received)
                             self.assertEqual(info.value.suggested_filename, name)
-                            self.assertEqual(received.read_bytes(), payload)
+                            if isinstance(payload, Path):
+                                self.assertEqual(received.stat().st_size, payload.stat().st_size)
+                                with payload.open('rb') as source, received.open('rb') as actual:
+                                    def digest(file):
+                                        h = hashlib.sha256()
+                                        for block in iter(lambda: file.read(1024 * 1024), b''):
+                                            h.update(block)
+                                        return h.digest()
+                                    self.assertEqual(digest(actual), digest(source))
+                            else:
+                                self.assertEqual(received.read_bytes(), payload)
                             receiver.locator('#done').click()
                             sender.locator('#transfer.hidden').wait_for(timeout=15000)
                             # The receiver releases its WebRTC connection 800ms after ACK.
@@ -195,6 +209,7 @@ class ArcDropBrowserTests(unittest.TestCase):
 
                         send(a, b, 'a-to-b.txt', b'ArcDrop forward LAN P2P transfer')
                         send(b, a, 'b-to-a.txt', b'ArcDrop reverse LAN P2P transfer')
+                        send(a, b, 'empty.txt', b'')
                         with a.expect_file_chooser() as chooser:
                             a.locator('.peer').first.click()
                         chooser.value.set_files({'name': 'declined.txt', 'mimeType': 'text/plain',
@@ -202,6 +217,27 @@ class ArcDropBrowserTests(unittest.TestCase):
                         b.locator('#incoming:not(.hidden)').wait_for(timeout=20000)
                         b.locator('#decline').click()
                         a.locator('#transfer.hidden').wait_for(timeout=15000)
+                        # Sender cancels while the receiver still has the consent dialog.
+                        with a.expect_file_chooser() as chooser:
+                            a.locator('.peer').first.click()
+                        chooser.value.set_files({'name': 'cancel.txt', 'mimeType': 'text/plain',
+                                                 'buffer': b'CANCEL THIS'})
+                        b.locator('#incoming:not(.hidden)').wait_for(timeout=20000)
+                        a.locator('#cancel').click()
+                        a.locator('#transfer.hidden').wait_for(timeout=10000)
+                        b.locator('#incoming.hidden').wait_for(timeout=20000)
+                        # A tab reload must restore its session and peer discovery.
+                        a.reload(timeout=20000)
+                        a.locator('#connection-label').get_by_text('로컬 연결').wait_for(timeout=20000)
+                        a.locator('.peer').first.wait_for(timeout=22000)
+                        if os.environ.get('ARCDROP_E2E_LARGE', '').lower() in ('1', 'true', 'yes'):
+                            # Opt-in boundary check, never enabled in fast PR smoke.
+                            large_file = directory / 'boundary-64MiB.bin'
+                            with large_file.open('wb') as output:
+                                block = bytes(range(256)) * 4096
+                                for _ in range(64):
+                                    output.write(block)
+                            send(a, b, large_file.name, large_file)
                         self.assertEqual(page_errors, [], page_errors)
                         # The router's CGI state contains signaling metadata, never any bytes.
                         for record in (directory / 'sessions').glob('*.json'):
@@ -209,6 +245,7 @@ class ArcDropBrowserTests(unittest.TestCase):
                             self.assertNotIn(b'ArcDrop forward LAN P2P transfer', content)
                             self.assertNotIn(b'ArcDrop reverse LAN P2P transfer', content)
                             self.assertNotIn(b'REJECT THIS', content)
+                            self.assertNotIn(b'CANCEL THIS', content)
                     finally:
                         browser.close()
             finally:

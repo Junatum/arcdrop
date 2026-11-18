@@ -289,6 +289,19 @@ class ArcDropCGITests(unittest.TestCase):
         self.assertEqual(status, 403)
         self.assertIn('pending invitation', data['error'])
 
+    def test_승인전_초대_취소는_해당_수신자에게만_전달되고_승인을_차단한다(self):
+        a, b, stranger = self.session('A'), self.session('B'), self.session('Stranger')
+        self.assertEqual(self.call('signal', {**a, 'to': b['id'], 'kind': 'invite',
+            'body': {'name': 'cancel.txt', 'size': 2}})[0], 200)
+        self.assertEqual(self.call('signal', {**stranger, 'to': b['id'],
+            'kind': 'bye', 'body': {}})[0], 403)
+        self.assertEqual(self.call('signal', {**a, 'to': b['id'],
+            'kind': 'bye', 'body': {}})[0], 200)
+        kinds = [message['kind'] for message in self.call('poll', b)[1]['messages']]
+        self.assertEqual(kinds, ['invite', 'bye'])
+        self.assertEqual(self.call('signal', {**b, 'to': a['id'],
+            'kind': 'accept', 'body': {}})[0], 403)
+
     def test_수신_승인_이후에만_협상을_중개한다(self):
         a, b = self.session('A'), self.session('B')
         status, _ = self.call('signal', {**a, 'to': b['id'], 'kind': 'invite',

@@ -2,7 +2,7 @@
 
 **Languages:** [English](DEVELOPMENT.md) | [한국어](ko/DEVELOPMENT.md)
 
-This guide describes ArcDrop **0.1.0-r18** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
+This guide describes ArcDrop **0.1.0-r19** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The project remains a prototype pending validation on supported routers.
 
 ## 1. Overview
 
@@ -30,7 +30,7 @@ arcdrop/
 │   └── demo.html, demo.js       # Local-only mock design preview
 ├── spec/contracts_spec.sh       # Korean ShellSpec contracts
 ├── tests/                       # CGI, JS, UI and package/document contracts
-├── e2e/browser_e2e.py          # Optional real-browser E2E
+├── e2e/browser_e2e.py          # CI Chromium smoke + optional full-browser E2E
 ├── tools/check_test_coverage.py # CI test-registration integrity
 ├── docs/ko/DEVELOPMENT.md       # Korean translation
 ├── docs/INSTALLATION.md         # OpenWrt install/build procedure
@@ -101,13 +101,23 @@ The explicit TAP reporter prevents differences between Node.js output styles (`#
 
 ## 6. Optional real-browser WebRTC E2E
 
-`e2e/browser_e2e.py` starts temporary HTTPS/CGI services and uses two Playwright browser contexts to test WebRTC in both directions. It is **not** part of required ShellSpec CI.
+`e2e/browser_e2e.py` starts temporary HTTPS/CGI services and uses two Playwright browser contexts to test WebRTC in both directions. A Chromium smoke run is **required by CI** on every push/PR; Firefox/WebKit and exact-64-MiB checks remain optional. It is not part of ShellSpec.
 
 ```sh
 python3 -m pip install playwright
 python3 -m playwright install chromium
 python3 e2e/browser_e2e.py
 ```
+
+To exercise the optional exact-size boundary: `ARCDROP_E2E_LARGE=1 python3 e2e/browser_e2e.py`. This runs a 64 MiB file through the browser, compares SHA-256 without loading both files into Python memory, and may take longer.
+
+For a host-only, concurrent CGI benchmark (no hardware or browser):
+
+```sh
+python3 tools/bench_cgi.py --clients 2,6,12 --polls 8
+```
+
+The benchmark builds the actual CGI with `ARCDROP_TEST` and uses temporary 127/8 virtual devices. For physical-router resource samples, manually copy `tools/router-sample.sh` to the router and run `sh router-sample.sh 10 30`; it reads only uptime, memory and `/tmp` usage. The script refuses macOS execution, and its ShellSpec contract uses mocked Linux commands; on Linux/OpenWrt it falls back to `/proc/meminfo` if `free` is unavailable. It prints only aggregate CGI/lock/wall percentiles, never session tokens. **Host numbers are not representative of OpenWrt router latency.** See [validation](VALIDATION.md) for physical device procedures.
 
 **Current state:** The optional E2E runner auto-detects Chromium/Chrome/Edge on macOS or Linux, uses the same Homebrew/json-c flag discovery as the CGI tests, and generates portable short-lived OpenSSL certificates. After `python3 -m playwright install chromium`, run `python3 e2e/browser_e2e.py`; set `ARCDROP_E2E_BROWSER=webkit` (or `firefox`) to test another installed engine. The runner tests both file directions and rejection and is available through manual GitHub Actions. The current sandbox still blocks browser localhost navigation: passing the new runner compatibility contracts is not the same as running browser E2E or iPadOS hardware validation. See [release validation](VALIDATION.md). `ARCDROP_TEST_MODE` is strictly testing-only.
 
@@ -246,7 +256,7 @@ regression tests and removes temporary `.gcda`/`.gcov` files. It does not
 change the OpenWrt package or collect coverage from a production device.
 
 
-## 5–6. Reliable signaling and transfer performance (0.1.0-r18)
+## 5–6. Reliable signaling and transfer performance (0.1.0-r19)
 
 The browser sends `acks` in the next `poll` only after a signal was handled
 (or a terminal handling error was recorded). Old poll clients omit the array

@@ -72,3 +72,26 @@ jobs:
 
       - name: Run all language linters
         run: sh tools/lint.sh
+
+  browser_smoke:
+    name: Chromium P2P smoke (real browser / CGI)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install host CGI and certificate dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc libjson-c-dev pkg-config openssl
+      - name: Install Chromium E2E runtime
+        run: |
+          python3 -m pip install 'playwright>=1.50,<2'
+          python3 -m playwright install --with-deps chromium
+      - name: Run bidirectional browser smoke
+        env:
+          ARCDROP_E2E_BROWSER: chromium
+          ARCDROP_E2E_LARGE: '0'
+        run: python3 e2e/browser_e2e.py

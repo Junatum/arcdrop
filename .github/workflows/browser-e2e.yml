@@ -11,6 +11,11 @@ on:
         options:
           - ubuntu-24.04
           - macos-15
+      large_file:
+        description: 'Also test exact 64 MiB transfer (longer running, high memory)'
+        required: true
+        default: false
+        type: boolean
       browser:
         description: 'Desktop browser engine (iPadOS still requires real-device testing)'
         required: true
@@ -49,4 +54,5 @@ jobs:
       - name: Execute real browser LAN transfer checks
         env:
           ARCDROP_E2E_BROWSER: ${{ inputs.browser }}
+          ARCDROP_E2E_LARGE: ${{ inputs.large_file }}
         run: python3 e2e/browser_e2e.py

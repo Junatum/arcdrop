@@ -113,6 +113,11 @@ export async function handleSignal(message) {
     show('incoming', true); renderPeers();
     return;
   }
+  // A sender may cancel before the receiver accepts. Do not leave a stale
+  // consent dialog visible until its 30s timeout.
+  if (kind === 'bye' && state.incoming?.from === from) {
+    clearIncoming(); renderPeers(); notice('상대방이 전송 요청을 취소했습니다.'); return;
+  }
   if (kind === 'decline' && t?.peerId === from) { await cancelTransfer('상대방이 파일 전송을 거절했습니다.', false); return; }
   if (kind === 'bye' && t?.peerId === from) { await cancelTransfer('상대방이 전송을 종료했습니다.', false); return; }
   if (!t || t.peerId !== from) return;

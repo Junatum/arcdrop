@@ -3,6 +3,26 @@
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
 
+## 0.1.0-r19 (2026-11-18)
+
+### Fixed
+- Let an inviting device cancel a not-yet-approved transfer without letting unrelated peers send cancellation messages; dismiss a pending consent dialog when the cancellation arrives.
+
+### Improved
+- Run genuine Chromium-to-Chromium CGI/WebRTC transfer smoke checks automatically on push and pull requests, while retaining manually selected Firefox/WebKit checks.
+- Add an optional exact-64-MiB transfer test with streaming SHA-256 verification and no dependency on a browser file-system access API.
+- Add an isolated native CGI load probe for 2, 6, and 12 simultaneous virtual clients that reports anonymous Server-Timing percentiles and lock waits. Provide a portable read-only resource sampler for manual router tests.
+
+### Compatibility
+- Keep OpenWrt package dependencies and LAN-only production access checks unchanged; multiple loopback test clients are accepted only by the ARCDROP_TEST build.
+- Do not include browser test tooling, load probes, temporary certificates, or file payloads in the router package.
+
+### Tests
+- Exercise bidirectional transfer, empty files, rejection, pre-approval cancellation and tab reload through the browser E2E runner.
+- Verify CGI pre-approval cancellation authorization, load probe statistics, CI integration and absence of authorization tokens in benchmark reports.
+- Document real-device browser, router timing, resource usage and network-isolation acceptance checks separately from host results.
+
+
 ## 0.1.0-r18 (2026-11-18)
 
 ### Fixed

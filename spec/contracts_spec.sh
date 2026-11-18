@@ -39,6 +39,20 @@ Describe 'ArcDrop ShellSpec 계약 테스트'
     The error should be blank
   End
 
+  It '실제 CGI를 2·6·12개 가상 기기로 폴링하여 잠금 지연을 계측한다'
+    When run command python3 "$SHELLSPEC_PROJECT_ROOT/tests/test_bench.py"
+    The status should be success
+    The output should include 'OK'
+    The error should be blank
+  End
+
+  It '실기기에서 메타데이터를 읽지 않는 자원 샘플러를 확인한다'
+    When run command sh "$SHELLSPEC_PROJECT_ROOT/tests/test-router-sample.sh"
+    The status should be success
+    The output should start with 'PASS:'
+    The error should be blank
+  End
+
   It '프론트엔드 JavaScript 문법을 확인한다'
     When run command sh "$SHELLSPEC_PROJECT_ROOT/tests/test-js-syntax.sh"
     The status should be success

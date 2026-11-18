@@ -439,3 +439,14 @@ test('503 응답 시 동일한 시그널링 요청 ID로만 재시도하고 권�
     /forbidden/);
   assert.equal(denied, 1, '권한 오류를 재시도하면 안 됨');
 });
+
+test('승인 전 취소 알림은 오래된 수신 모달을 닫는다', async () => {
+  const t = setup();
+  const from = 'e'.repeat(24);
+  await evaluate(t, `handleSignal({from:'${from}',kind:'invite',body:{name:'test.txt',size:2}})`);
+  assert.equal(t.get('incoming').classList.contains('hidden'), false);
+  await evaluate(t, `handleSignal({from:'${from}',kind:'bye',body:{}})`);
+  assert.equal(evaluate(t, 'state.incoming'), null);
+  assert.equal(t.get('incoming').classList.contains('hidden'), true);
+  assert.match(t.get('notice-text').textContent, /취소/);
+});

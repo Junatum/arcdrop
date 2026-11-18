@@ -13,7 +13,9 @@ int allowed_address(ArcContext *app) {
     if (!remote || inet_pton(AF_INET, remote, &ip) != 1) return 0;
     if (!inet_ntop(AF_INET, &ip, app->client_ip, sizeof(app->client_ip))) return 0;
 #ifdef ARCDROP_TEST
-    if (getenv("ARCDROP_TEST_MODE") && strcmp(app->client_ip, "127.0.0.1") == 0) return 1;
+    /* Host-only load tests use distinct loopback IPs to respect the per-IP cap. */
+    if (getenv("ARCDROP_TEST_MODE") &&
+        (ntohl(ip.s_addr) & UINT32_C(0xff000000)) == UINT32_C(0x7f000000)) return 1;
 #endif
     /* Only clients in the designated LAN interface subnet are allowed.
        An isolated guest subnet or forwarded WAN connection is rejected. */

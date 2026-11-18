@@ -50,7 +50,7 @@ cat /etc/arcdrop.conf
 /etc/init.d/uhttpd status
 uci show uhttpd.main
 ip -4 addr show br-lan
-ls -la /tmp/arcdrop
+ls -ld /tmp/arcdrop
 ```
 
 Do not print files in `/tmp/arcdrop` to bug reports: they contain short-lived authorization tokens and ICE information. The directory should contain only peer metadata, `.lock` and `.cleanup`; `.transaction` may appear during a two-peer signaling update but should not remain after a successful request. No received file content belongs there. Check that `/www/arcdrop/demo.html` and `/www/arcdrop/demo.js` do not exist.
@@ -78,3 +78,39 @@ The standalone ArcDrop repository **cannot** complete the following without addi
 3. Cross-compilation on all target toolchains and supported-router/iPad/Android end-to-end validation.
 
 Do not claim any of these are implemented or tested solely because ShellSpec or desktop E2E passes.
+
+## Automated release checks in 0.1.0-r19
+
+- Mandatory GitHub Actions `browser_smoke` job: two independent Chromium contexts, actual host-compiled CGI under temporary HTTPS, bidirectional payload equality, empty file, decline, pre-approval cancellation, reload/rediscovery and metadata-only router state. No artifacts are uploaded. A *passing* job proves only host browser behavior, not iPadOS or a real router.
+- Manual **Optional browser E2E** workflow: select Firefox or WebKit and optionally enable **large_file**. For an exact-size 64 MiB payload, use `ARCDROP_E2E_LARGE=1 python3 e2e/browser_e2e.py`. Compare stored file bytes with a streaming SHA-256, without relying on File System Access API. The test does not measure or guarantee iPad RAM usage.
+- CGI concurrency probe, run on a **development host only**:
+
+```sh
+python3 tools/bench_cgi.py --clients 2,6,12 --polls 8
+# Optional, explicit host-only limit (not suitable as a universal CI threshold):
+python3 tools/bench_cgi.py --clients 2,6,12 --polls 8 --max-p95-ms 300
+```
+
+The probe compiles the real CGI in `ARCDROP_TEST` mode, creates temporary independent loopback clients to honor the production per-IP rate bound, and performs concurrent `poll`/`peers` requests. It records CGI p50/p95, lock p95 and subprocess wall p95 from `Server-Timing`, **not** actual router CPU/memory/network latency. Output contains no IPs, session IDs, tokens or SDP. It runs without changing the production CGI, and any `--json-out` is an explicitly requested local file rather than a CI artifact.
+
+## Router performance acceptance record (human-operated)
+
+Use a **trusted test LAN and a device where you have administrative permission**. These measurements must be performed for each supported router; this repository has no direct access to hardware. Avoid `cat /tmp/arcdrop/*.json`, which reveals authorization tokens and SDP/ICE.
+
+1. Record router model, firmware revision, architecture, available RAM, available `/tmp` space, CPU load, attached client count, and browser/OS versions. Optionally copy `tools/router-sample.sh` manually to the router and run `sh router-sample.sh 10 30` (one snapshot every 10 seconds, 30 snapshots; no network calls, token access or installed service). On the router, read only the following values before and after testing:
+
+   ```sh
+   uptime
+   free
+   df -k /tmp
+   ps w | grep '[u]httpd'
+   ```
+
+   `router-sample.sh` deliberately refuses to run on macOS. The ShellSpec sampler contract uses mocked OpenWrt commands, so developers do not need `free` or `/proc/meminfo` on their Macs. On Linux/OpenWrt, the sampler uses `/proc/meminfo` when the `free` applet is unavailable.
+
+2. Connect 2, then 6, then 12 **real devices** when available. Keep a browser tab open on each, watch discovery for 10 minutes per group, and record p50/p95 `Server-Timing: cgi;dur=..., lock;dur=...` for successful authenticated `poll` responses using the browser Network inspector. Count errors, timeouts, peer churn and `429` rate limits. **Do not paste request bodies, tokens, peer IDs, Origin/cookie headers or full captured HAR files into bug reports.** The 24 total peer and 4 per-IP limits still apply.
+3. Inspect load/RAM/tmpfs before, during and after the session. Capture maxima and note battery/thermal behavior, especially GL-MT300N-V2. Confirm guest VLAN and WAN clients cannot discover or connect. No benchmark is complete unless the target hardware and network isolation checks are recorded.
+4. For iPadOS Safari and Firefox (WebKit), send zero bytes, a small file and an exact 64 MiB file in **both directions** with a desktop. Use SHA-256 on the receiving device when tooling is available, otherwise compare the exact bytes via a trusted local file tool. Repeat with a backgrounded tab, cancel-before-accept, approval timeout and reload. Record whether Safari is terminated/reloads under memory pressure; desktop WebKit does not substitute for iPadOS.
+5. Attach only **sanitized aggregate measurements** to the release notes. Do not claim CPU, p95, RAM, WebKit stability or throughput figures until an actual measurement has been recorded.
+
+Suggested private report fields: `date`, `model`, `firmware`, `architecture`, `browser/OS`, `clients`, `duration`, `CGI p50/p95`, `lock p95`, `RAM available min`, `/tmp available min`, `CPU/load`, `errors`, `file sizes`, `SHA-256 match`, `isolation result`, `outcome PASS/FAIL/not run`. Do not upload personal file names, transfer bodies, local IPs, auth tokens, certificates or network traces.
