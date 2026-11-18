@@ -5,7 +5,6 @@ Thanks for your interest in ArcDrop, a SmartSafeHub official app distributed und
 ## Before proposing a change
 
 - Open an issue describing the intended behavior, affected OpenWrt target or browser, and a reproducible scenario. For security concerns, use [SECURITY.md](SECURITY.md) instead of a public issue.
-- Keep ArcDrop independent: **do not copy PairDrop/Snapdrop source code, UI assets, or other unlicensed third-party material**.
 - Preserve the trusted-LAN boundary, HTTPS checks, explicit recipient approval, and the rule that the router must not receive file payload bytes.
 - Prefer small changes without persistent services, bulky dependencies, or generated frontend build output.
 

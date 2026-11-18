@@ -10,7 +10,7 @@
 
 ArcDrop은 SmartSafeHub 공식 OpenWrt 앱으로 개발하는, LAN 전용 파일 공유 애플리케이션입니다.
 
-- 라이선스: **GPL-3.0-or-later**. PairDrop/Snapdrop 소스와 에셋을 복제하지 않고 독립 구현합니다.
+- 라이선스: **GPL-3.0-or-later**
 - 브라우저 간 실제 파일 데이터 전송: **WebRTC RTCDataChannel** (`iceServers: []`, 외부 STUN/TURN 사용 안 함).
 - 공유기의 역할: 정적 웹페이지 제공과 CGI를 통한 기기 검색·승인·SDP/ICE 시그널링.
 - 공유기는 **파일 본문을 저장하거나 중계하지 않습니다**. `/tmp/arcdrop`에는 만료되는 기기·세션·시그널링 메타데이터만 둡니다.

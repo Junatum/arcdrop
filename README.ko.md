@@ -6,9 +6,9 @@
 
 [![Lint](https://github.com/Junatum/arcdrop/actions/workflows/ci.yml/badge.svg)](https://github.com/Junatum/arcdrop/actions/workflows/ci.yml)
 ![OpenWrt](https://img.shields.io/badge/OpenWrt-Compatible-blue)
-![License](https://img.shields.io/github/license/Junatum/arcdrop?label=License)
+[![License: GPL v3+](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-- **라이선스:** GPL-3.0-or-later. PairDrop의 코드 및 리소스를 사용하지 않은 독립 구현입니다.
+- **라이선스:** GPL-3.0-or-later
 - **패키지:** `smartsafehub-app-arcdrop` (`0.1.0-r17`).
 - **전송:** 브라우저 간 암호화된 WebRTC `RTCDataChannel`. `iceServers: []`로 외부 STUN/TURN 서버를 사용하지 않습니다.
 - **파일 미저장:** 공유기는 정적 UI와 기기 검색·SDP/ICE 시그널링만 처리합니다. 파일 본문은 공유기나 클라우드에 전송하거나 저장하지 않습니다.

@@ -1,6 +1,6 @@
 # ArcDrop architecture
 
-ArcDrop is a standalone, LAN-only file-transfer app for SmartSafeHub/OpenWrt. Its implementation is independent of PairDrop/Snapdrop. The current prototype uses a small native C CGI handler instead of a persistent signaling daemon.
+ArcDrop is a standalone, LAN-only file-transfer app for SmartSafeHub/OpenWrt. The current prototype uses a small native C CGI handler instead of a persistent signaling daemon.
 
 ## Data flow
 

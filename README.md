@@ -6,9 +6,9 @@
 
 [![Lint](https://github.com/Junatum/arcdrop/actions/workflows/ci.yml/badge.svg)](https://github.com/Junatum/arcdrop/actions/workflows/ci.yml)
 ![OpenWrt](https://img.shields.io/badge/OpenWrt-Compatible-blue)
-![License](https://img.shields.io/github/license/Junatum/arcdrop?label=License)
+[![License: GPL v3+](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-- License: **GPL-3.0-or-later**; independent implementation, no PairDrop code or assets reused.
+- License: **GPL-3.0-or-later**
 - Package: `smartsafehub-app-arcdrop` (`0.1.0-r17`).
 - Sender/receiver browsers transfer file bytes via encrypted **WebRTC RTCDataChannel**, with `iceServers: []` (no external STUN/TURN).
 - The router only serves a small local UI and passes bounded discovery/SDP/ICE metadata; **no file bytes are sent to or stored on the router**, cloud or local disk.

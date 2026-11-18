@@ -6,7 +6,7 @@ This guide describes ArcDrop **0.1.0-r17** from the accompanying source tree. **
 
 ## 1. Overview
 
-ArcDrop is a SmartSafeHub official app licensed under **GPL-3.0-or-later**, implemented independently of PairDrop/Snapdrop. It is intended for **trusted IPv4 LAN** file sharing with no cloud or router-side payload relay.
+ArcDrop is a SmartSafeHub official app licensed under **GPL-3.0-or-later**. It is intended for **trusted IPv4 LAN** file sharing with no cloud or router-side payload relay.
 
 - **Browser-to-browser:** encrypted WebRTC RTCDataChannel, `iceServers: []` (no external STUN/TURN).
 - **Router:** existing uHTTPd HTTPS/CGI serving UI and handling discovery, acceptance, SDP/ICE metadata.
