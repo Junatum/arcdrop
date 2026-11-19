@@ -3,6 +3,19 @@
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
 
+## 0.1.0-r21 (2026-11-19)
+
+### Improved
+- Simplify the English and Korean READMEs around features, getting started, UI preview and documentation, following the SmartSafeHub repository style.
+- Keep detailed build, security and release-validation guidance in the existing documentation rather than duplicating it in the README.
+
+### Compatibility
+- Keep the existing WebRTC protocol, OpenWrt dependencies and router file-storage policy unchanged. No new release-gate tooling or frontend build output.
+
+### Tests
+- Verify concise bilingual READMEs, required safety information, documentation links and synchronized package/UI versions.
+
+
 ## 0.1.0-r20 (2026-11-18)
 
 ### Fixed

@@ -35,6 +35,24 @@ for path, text in (('README.md', eng), ('README.ko.md', kor),
                    ('docs/DEVELOPMENT.md', dev), ('docs/ko/DEVELOPMENT.md', dev_ko)):
     require(full in text, f'버전 동기화 오류: {path}')
 
+# Keep the landing pages concise, consistent and safe to use as a pre-release introduction.
+for path, content, sections in (
+    ('README.md', eng, ('Features', 'Getting started', 'UI preview', 'Development and tests', 'Documentation', 'License')),
+    ('README.ko.md', kor, ('주요 기능', '빠른 시작', '화면 미리보기', '개발 및 테스트', '문서', '라이선스')),
+):
+    require(len(content.splitlines()) <= 90, f'{path}: README가 너무 깁니다')
+    for section in sections:
+        require(f'## {section}' in content, f'{path}: 필수 섹션 누락: {section}')
+    for term in ('WebRTC', 'HTTPS', '64 MiB', 'smartsafehub-app-arcdrop', 'docs/INSTALLATION.md',
+                 'docs/DEPLOYMENT.md', 'docs/VALIDATION.md', 'CHANGELOG.md'):
+        require(term in content, f'{path}: 핵심 정보 또는 문서 링크 누락: {term}')
+require('not yet published' in eng and '아직 출시되지' in kor,
+        '미출시 앱을 출시된 것으로 오해할 수 있습니다')
+require('No files on the router' in eng and '공유기에 파일 미저장' in kor,
+        '공유기 파일 미저장 정책 누락')
+require('does not send files' in eng and '실제 파일을 전송하지 않' in kor,
+        '데모와 실제 파일 전송 구분 누락')
+
 require('[한국어](README.ko.md)' in eng, '영어 README 한국어 링크 누락')
 require('[English](README.md)' in kor, '한국어 README 영어 링크 누락')
 require('[한국어](ko/DEVELOPMENT.md)' in dev, '영어 개발 가이드 한국어 링크 누락')
