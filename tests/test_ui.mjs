@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import vm from 'node:vm';
 import { createHash, webcrypto } from 'node:crypto';
+import { Sha256 } from '../web/js/sha256.js';
 import { browserTestSource } from '../tools/browser_vm.mjs';
 import { compactCss } from '../tools/css_fixture.mjs';
 const root = resolve(import.meta.dirname, '..');
@@ -689,7 +690,7 @@ test('SHA-256 일치 시에만 다운로드를 보여주고 손상되면 전송�
   }
 });
 
-test('송신 측 SHA-256은 작은 파일에만 포함하며 큰 파일은 추가 메모리를 할당하지 않는다', async () => {
+test('소형 파일은 기존 WebCrypto 경로를 유지하고 대용량 전체 읽기는 피한다', async () => {
   const { context } = createBrowserRuntime();
   context.crypto = webcrypto;
   context.testFile = new Blob([Uint8Array.from([65, 66, 67])]);
@@ -762,5 +763,103 @@ test('사용자 안내와 기기 이름은 밝은·어두운 테마와 모바일
     assert.match(markup, /class="privacy-note"/);
     assert.match(markup, /id="peer-count" class="peer-count"/);
     assert.match(markup, /id="connection-label"/);
+  }
+});
+
+test('증분 SHA-256은 표준 벡터와 8/64 MiB 경계에서 Node.js 결과와 일치한다', () => {
+  const vectors = [
+    ['', 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'],
+    ['abc', 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'],
+  ];
+  for (const [value, expected] of vectors) {
+    const hash = new Sha256();
+    hash.update(new TextEncoder().encode(value));
+    assert.equal(hash.digestHex(), expected);
+    assert.throws(() => hash.digestHex(), /완료/);
+  }
+  const chunk = new Uint8Array(16 * 1024);
+  for (let i = 0; i < chunk.length; i++) chunk[i] = (i * 53 + 13) & 255;
+  for (const length of [55, 56, 63, 64, 65, 8 * 1024 * 1024 + 1, 64 * 1024 * 1024]) {
+    const actual = new Sha256();
+    const reference = createHash('sha256');
+    for (let offset = 0; offset < length; offset += chunk.length) {
+      const slice = chunk.subarray(0, Math.min(chunk.length, length - offset));
+      actual.update(slice); reference.update(slice);
+    }
+    assert.equal(actual.digestHex(), reference.digest('hex'), `${length} byte SHA-256`);
+  }
+});
+
+test('9 MiB 이상 전송은 전체 파일 읽기 없이 SHA-256을 포함하며 수신 후 검증한다', async () => {
+  const size = 9 * 1024 * 1024 + 7;
+  const payload = new Uint8Array(size);
+  for (let i = 0; i < payload.length; i++) payload[i] = (i * 37 + (i >>> 9)) & 255;
+  const expected = createHash('sha256').update(payload).digest('hex');
+  const source = new Blob([payload]);
+  source.name = 'large.bin';
+  source.arrayBuffer = () => { throw Error('whole-file allocation forbidden'); };
+
+  const sender = createBrowserRuntime();
+  const packets = [];
+  sender.context.testFile = source;
+  sender.context.testChannel = {readyState: 'open', bufferedAmount: 0, send(data) { packets.push(data); }, close() {}};
+  vm.runInContext(`state.active = {
+    file:testFile,peerId:'receiver',peerName:'receiver',role:'sender',channel:testChannel,
+    bytes:0,received:[],parts:[],candidates:[],timeout:null
+  }`, sender.context);
+  await vm.runInContext('sendFile(state.active)', sender.context);
+  const meta = JSON.parse(packets[0]);
+  const end = JSON.parse(packets.at(-1));
+  assert.equal(meta.integrity, 'sha256');
+  assert.equal(end.sha256, expected);
+  assert.equal(packets.filter(p => p instanceof ArrayBuffer).length, Math.ceil(size / (16 * 1024)));
+
+  for (const corrupt of [false, true]) {
+    const receiver = createBrowserRuntime();
+    const sent = [];
+    let downloads = 0;
+    // Large receive must not invoke Blob.arrayBuffer(), which copies the file.
+    receiver.context.Blob = class extends Blob {
+      arrayBuffer() { throw Error('whole-file verification allocation forbidden'); }
+    };
+    receiver.context.URL = {createObjectURL() { downloads++; return 'blob:verified'; }, revokeObjectURL() {}};
+    receiver.context.testChannel = {readyState: 'open', send(data) { sent.push(JSON.parse(data)); }, close() {}};
+    receiver.context.meta = JSON.stringify(meta);
+    receiver.context.end = JSON.stringify(end);
+    vm.runInContext(`state.active = {
+      peerId:'sender',peerName:'sender',role:'receiver',phase:'receiving',started:false,
+      bytes:0,offer:{name:'large.bin',size:${size}},channel:testChannel,
+      received:[],parts:[],candidates:[],timeout:null
+    }; receiveMessage(state.active,meta);`, receiver.context);
+    for (const [i, packet] of packets.slice(1, -1).entries()) {
+      const bytes = corrupt && i === 17 ? new Uint8Array(packet).slice() : packet;
+      if (corrupt && i === 17) bytes[0] ^= 1;
+      receiver.context.packetBytes = new Uint8Array(bytes instanceof Uint8Array ? bytes : bytes);
+      vm.runInContext('receiveMessage(state.active,new Uint8Array(packetBytes).buffer)', receiver.context);
+    }
+    if (corrupt) assert.throws(() => vm.runInContext('receiveMessage(state.active,end)', receiver.context),
+      /무결성 검사/);
+    else vm.runInContext('receiveMessage(state.active,end)', receiver.context);
+    assert.equal(downloads, corrupt ? 0 : 1);
+    assert.equal(sent.filter(m => m.type === 'ack').length, corrupt ? 0 : 1);
+  }
+});
+
+test('새 발신자의 SHA-256 누락은 거부하고 오래된 프로토콜은 유지한다', () => {
+  for (const integrity of [true, false]) {
+    const receiver = createBrowserRuntime();
+    let downloads = 0;
+    receiver.context.URL = {createObjectURL() { downloads++; return 'blob:test'; }, revokeObjectURL() {}};
+    receiver.context.testChannel = {send() {}, close() {}};
+    receiver.context.meta = JSON.stringify({type:'meta', name:'test.bin', size:1,
+      ...(integrity ? {integrity:'sha256'} : {})});
+    vm.runInContext(`state.active = {
+      peerId:'old',peerName:'old',role:'receiver',phase:'receiving',started:false,bytes:0,
+      offer:{name:'test.bin',size:1},channel:testChannel,received:[],parts:[],timeout:null
+    }; receiveMessage(state.active,meta); receiveMessage(state.active,new Uint8Array([42]).buffer);`, receiver.context);
+    if (integrity) assert.throws(() => vm.runInContext(
+      "receiveMessage(state.active,JSON.stringify({type:'end'}))", receiver.context), /무결성 검증값/);
+    else vm.runInContext("receiveMessage(state.active,JSON.stringify({type:'end'}))", receiver.context);
+    assert.equal(downloads, integrity ? 0 : 1);
   }
 });

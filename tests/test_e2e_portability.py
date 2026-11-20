@@ -73,7 +73,7 @@ class ArcDropE2EPortabilityTests(unittest.TestCase):
         self.assertIn("name not in (f'js/{module}' for module in modules)", SOURCE)
         self.assertIn('self.send_error(404)', SOURCE)
         self.assertIn("mimetypes.guess_type(name)", SOURCE)
-        for name in ('core', 'api', 'ui', 'discovery', 'transfer', 'signaling', 'session'):
+        for name in ('core', 'api', 'ui', 'discovery', 'sha256', 'transfer', 'signaling', 'session'):
             self.assertTrue((ROOT / f'web/js/{name}.js').is_file())
         self.assertNotIn("'demo.js', 'style.css'", SOURCE)
 

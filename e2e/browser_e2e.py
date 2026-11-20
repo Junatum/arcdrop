@@ -85,7 +85,7 @@ class RouterHTTPHandler(BaseHTTPRequestHandler):
             self.send_error(404)
             return
         allowed = ('index.html', 'app.js', 'style.css', 'icon.svg')
-        modules = ('core.js', 'api.js', 'ui.js', 'discovery.js', 'transfer.js', 'signaling.js', 'session.js')
+        modules = ('core.js', 'api.js', 'ui.js', 'discovery.js', 'sha256.js', 'transfer.js', 'signaling.js', 'session.js')
         if name not in allowed and name not in (f'js/{module}' for module in modules):
             self.send_error(404)
             return

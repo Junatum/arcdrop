@@ -111,7 +111,7 @@ await entry.link((specifier, ref) => {
   return load(target);
 });
 await entry.evaluate();
-if (cache.size !== 8) throw Error('Module graph size: ' + cache.size);
+if (cache.size !== 9) throw Error('Module graph size: ' + cache.size);
 const state = [...cache.values()].find((mod) => mod.identifier.endsWith('/core.js')).namespace.state;
 if (state.active !== null || state.session !== null) throw Error('Unexpected transfer state');
 const session = [...cache.values()].find((mod) => mod.identifier.endsWith('/session.js')).namespace;

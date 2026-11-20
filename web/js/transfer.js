@@ -4,11 +4,12 @@ import { state, LIMIT, CHUNK, sleep, sizeText, wakePoll } from './core.js';
 import { $, show, notice, progress } from './ui.js';
 import { signal, newSignalId } from './api.js';
 import { renderPeers } from './discovery.js';
+import { Sha256 } from './sha256.js';
 
 export const UI_UPDATE_INTERVAL_MS = 100;
 export const RECEIVE_SEGMENT_BYTES = 1024 * 1024;
-// WebCrypto digest() requires a contiguous buffer. Keep its optional extra
-// allocation below 8 MiB to avoid memory spikes on iOS / older devices.
+// WebCrypto digest() requires a contiguous buffer; use incremental SHA-256
+// above this threshold (or when WebCrypto is unavailable) to avoid extra RAM.
 export const INTEGRITY_MAX_BYTES = 8 * 1024 * 1024;
 
 async function smallFileDigest(file) {
@@ -186,8 +187,9 @@ export async function sendFile(t) {
   if (state.active !== t || channel.readyState !== 'open') throw Error('전송이 중단되었습니다.');
   t.phase = 'sending';
   const sha256 = await smallFileDigest(t.file);
+  const streamHash = sha256 === null ? new Sha256() : null;
   if (state.active !== t || channel.readyState !== 'open') throw Error('전송이 중단되었습니다.');
-  channel.send(JSON.stringify({ type: 'meta', name: t.file.name, size: t.file.size }));
+  channel.send(JSON.stringify({ type: 'meta', name: t.file.name, size: t.file.size, integrity: 'sha256' }));
   for (let offset = 0; offset < t.file.size; offset += CHUNK) {
     if (state.active !== t || channel.readyState !== 'open') throw Error('전송이 중단되었습니다.');
     while (channel.bufferedAmount > 1024 * 1024) {
@@ -195,6 +197,8 @@ export async function sendFile(t) {
       await sleep(30);
     }
     const bytes = await t.file.slice(offset, Math.min(t.file.size, offset + CHUNK)).arrayBuffer();
+    if (state.active !== t || channel.readyState !== 'open') throw Error('전송이 중단되었습니다.');
+    if (streamHash) streamHash.update(new Uint8Array(bytes));
     channel.send(bytes);
     t.bytes = Math.min(t.file.size, offset + bytes.byteLength);
     armTimeout(t);
@@ -202,7 +206,7 @@ export async function sendFile(t) {
   }
   if (state.active !== t || channel.readyState !== 'open') throw Error('전송이 중단되었습니다.');
   t.phase = 'awaiting-ack';
-  channel.send(JSON.stringify(sha256 ? { type: 'end', sha256 } : { type: 'end' }));
+  channel.send(JSON.stringify({ type: 'end', sha256: sha256 ?? streamHash.digestHex() }));
   transferProgress(t, '저장 확인 대기', t.file.size, t.file.size, '수신 기기에서 전송 완료를 확인합니다.', true);
   armTimeout(t);
 }
@@ -239,6 +243,9 @@ export function receiveMessage(t, data) {
     const msg = JSON.parse(data);
     if (msg.type === 'meta' && t.role === 'receiver' && t.phase === 'receiving' && !t.started) {
       if (msg.name !== t.offer.name || msg.size !== t.offer.size) throw Error('요청 정보와 전송 파일이 다릅니다.');
+      if (msg.integrity !== undefined && msg.integrity !== 'sha256')
+        throw Error('지원하지 않는 파일 검증 형식입니다.');
+      t.integrityRequired = msg.integrity === 'sha256';
       t.started = true; return;
     }
     if (msg.type === 'end' && t.role === 'receiver' && t.phase === 'receiving' &&
@@ -250,10 +257,14 @@ export function receiveMessage(t, data) {
       const blob = new Blob(t.parts, { type: 'application/octet-stream' });
       t.parts = [];
       t.phase = 'verifying';
-      // Only announce success after verifying the optional small-file SHA-256.
-      if (sha) {
-        if (!globalThis.crypto?.subtle?.digest || blob.size > INTEGRITY_MAX_BYTES)
-          throw Error('파일 무결성 확인을 수행할 수 없습니다.');
+      // New senders require SHA-256; legacy senders without integrity metadata
+      // remain compatible with the previous optional-hash protocol.
+      if (t.integrityRequired && !sha) throw Error('파일 무결성 검증값이 누락되었습니다.');
+      if (sha && (blob.size > INTEGRITY_MAX_BYTES || !globalThis.crypto?.subtle?.digest)) {
+        const digest = (t.streamHash || new Sha256()).digestHex();
+        if (digest !== sha) throw Error('파일 무결성 검사에 실패했습니다.');
+        completeReceive(t, blob);
+      } else if (sha) {
         armTimeout(t);
         void verifyAndComplete(t, blob, sha).catch((err) => {
           if (state.active === t) void cancelTransfer(err.message);
@@ -271,6 +282,10 @@ export function receiveMessage(t, data) {
   if (t.role !== 'receiver' || t.phase !== 'receiving' || !t.started || t.finished ||
       !(data instanceof ArrayBuffer) || data.byteLength === 0 || data.byteLength > CHUNK ||
       t.bytes + data.byteLength > t.offer.size) throw Error('잘못된 파일 데이터가 도착했습니다.');
+  if (t.offer.size > INTEGRITY_MAX_BYTES || !globalThis.crypto?.subtle?.digest) {
+    if (!t.streamHash) t.streamHash = new Sha256();
+    t.streamHash.update(new Uint8Array(data));
+  }
   t.received.push(data); t.bytes += data.byteLength;
   t.segmentBytes = (t.segmentBytes || 0) + data.byteLength;
   if (t.segmentBytes >= RECEIVE_SEGMENT_BYTES) flushReceiveSegment(t);

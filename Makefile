@@ -13,7 +13,7 @@ include $(INCLUDE_DIR)/package.mk
 
 # The same source list is used by target package preparation and linking.
 ARCDROP_SOURCES:=arcdrop.c http.c json_helpers.c lan.c peer_store.c session.c signaling.c signal_queue.c
-ARCDROP_WEB_MODULES:=core.js api.js ui.js discovery.js transfer.js signaling.js session.js
+ARCDROP_WEB_MODULES:=core.js api.js ui.js discovery.js sha256.js transfer.js signaling.js session.js
 
 define Package/smartsafehub-app-arcdrop
   SECTION:=net

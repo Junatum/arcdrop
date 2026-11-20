@@ -29,7 +29,7 @@ The router serves the HTML/CSS/JS/SVG and exchanges **signaling metadata only**;
 | WebRTC signaling | `src/signaling.c`, `src/signal_queue.c` | Consent validation, SDP/ICE metadata, acknowledgement and bounded queue |
 | Shared CGI contract | `src/arcdrop.h` | Explicit request context and module interfaces |
 | Browser bootstrap | `web/app.js` | ES module entry, browser event listeners and startup |
-| Browser modules | `web/js/{core,api,ui,discovery,transfer,signaling,session}.js` | Shared state, CGI API, UI, discovery, file transfer, WebRTC negotiation and session polling |
+| Browser modules | `web/js/{core,api,ui,discovery,sha256,transfer,signaling,session}.js` | Shared state, CGI API, UI, discovery, incremental checksum, file transfer, WebRTC negotiation and session polling |
 | Browser UI | `web/index.html`, `web/style.css`, `web/icon.svg` | Responsive device-centric transfer UI |
 | Local design demo | `web/demo.html`, `web/demo.js` | Isolated preview only; not installed to routers |
 | Configuration | `root/etc/arcdrop.conf` | Trusted LAN interface (`br-lan` by default) |
@@ -40,7 +40,8 @@ The router serves the HTML/CSS/JS/SVG and exchanges **signaling metadata only**;
 2. The sender selects a peer and one file (up to **64 MiB**), then sends an invitation through CGI.
 3. The receiver **must accept** before WebRTC negotiation begins.
 4. Browsers collect local ICE candidates before exchanging bundled offer/answer SDP through CGI, then attempt direct connectivity with `iceServers: []` (no STUN/TURN relay). Legacy trickled ICE messages remain accepted for mixed-version sessions.
-5. File bytes move through an encrypted WebRTC RTCDataChannel in **16 KiB** chunks, with buffering limits. The receiver saves locally.
+5. File bytes move through an encrypted WebRTC RTCDataChannel in **16 KiB** chunks, with buffering limits. The receiver saves locally after verification.
+6. A new sender advertises `integrity: sha256` in the data-channel `meta` message and includes the complete file SHA-256 in `end`. Files over 8 MiB are hashed as chunks arrive, without re-reading the complete 64 MiB Blob; the receiver does not offer a download or send an ACK on mismatch. Older peers without this flag can still use the existing optional-hash flow.
 
 The CGI requires HTTPS and same-origin JSON requests. Session credentials are short-lived. The API is not intended for WAN or isolated guest/VLAN segments. The system cannot guarantee direct connectivity when local client isolation blocks WebRTC host candidates.
 

@@ -25,7 +25,7 @@ arcdrop/
 ├── src/{http,lan,peer_store,session,signaling,json_helpers}.c # Native modules
 ├── web/
 │   ├── index.html, app.js       # HTML and native ES module entry point
-│   ├── js/{core,api,ui,discovery,transfer,signaling,session}.js # Browser modules
+│   ├── js/{core,api,ui,discovery,sha256,transfer,signaling,session}.js # Browser modules
 │   ├── style.css, icon.svg      # CSS and shared infinity-flow icon
 │   └── demo.html, demo.js       # Local-only mock design preview
 ├── spec/contracts_spec.sh       # Korean ShellSpec contracts
@@ -201,7 +201,7 @@ Run `shellspec` after edits. The CGI presence tests and Node discovery tests cov
 ## Browser module refactor (0.1.0-r17)
 
 The production page loads native ESM `web/app.js` with `type="module"` and
-relative imports of `web/js/{core,api,ui,discovery,transfer,signaling,session}.js`.
+relative imports of `web/js/{core,api,ui,discovery,sha256,transfer,signaling,session}.js`.
 There are no npm/runtime dependencies or generated frontend assets. OpenWrt
 installs the exact module set under `/www/arcdrop/js/`; the isolated design
 demo is never packaged. Unit tests keep existing DOM/CGI regression cases,
@@ -289,4 +289,4 @@ E2E, iOS Safari and OpenWrt target builds remain required before production.
 
 The wire-compatible `signal` API may include a 24-hex `transferId` separate from its restricted `body`. Consent and queued messages are scoped to that ID. New clients advertise `protocolVersion: 2` on registration and scope transfers only to peers with that capability, so mixed-version pairs continue to use the existing unscoped legacy consent path. The polling client acknowledges a message only when it has been handled or conclusively abandoned after bounded attempts. Failed requests use AbortController; signaling retries preserve `requestId`.
 
-Browser sessions cloned by a duplicate tab are separated via BroadcastChannel when available. The receive data channel optionally validates SHA-256 for files up to 8 MiB, without a full-buffer digest for larger files. Stale atomic-write snapshots are removed only after 120 seconds from the private CGI state directory. See `docs/VALIDATION.md` for real-browser and router acceptance checks.
+Browser sessions cloned by a duplicate tab are separated via BroadcastChannel when available. The receive data channel validates SHA-256 for new senders at every supported size up to 64 MiB. Above 8 MiB (or without WebCrypto), `sha256.js` processes the existing file chunks incrementally, without a second whole-file allocation. Older senders without integrity metadata retain optional-digest compatibility. Stale atomic-write snapshots are removed only after 120 seconds from the private CGI state directory. See `docs/VALIDATION.md` for real-browser and router acceptance checks.

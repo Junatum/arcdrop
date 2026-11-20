@@ -272,7 +272,7 @@ macOS Homebrew/LibreSSL과 Linux의 라이브러리 및 브라우저 실행 경�
 
 - 운영용 `web/app.js`는 브라우저 기본 ES Module 진입점으로만 사용하며, `web/index.html`에서 `type="module"`로 불러옵니다.
 - `web/js/core.js`는 전송 용량과 공유 상태, `api.js`는 CGI JSON 통신, `ui.js`는 화면 조작과 테마, `discovery.js`는 기기 목록·선택을 담당합니다.
-- `transfer.js`는 초대 승인과 파일 청크 송수신, `signaling.js`는 ICE/SDP 협상, `session.js`는 세션 유지·폴링·복구를 담당합니다.
+- `sha256.js`는 대용량 파일의 증분 무결성 계산, `transfer.js`는 초대 승인과 파일 청크 송수신, `signaling.js`는 ICE/SDP 협상, `session.js`는 세션 유지·폴링·복구를 담당합니다.
 - 별도 npm/Vite 번들러 없이 소스 그대로 `/www/arcdrop/js/`에 설치합니다. 데모 화면은 계속 제품 패키지에 포함하지 않습니다.
 - `node --test tests/test_frontend.mjs tests/test_ui.mjs tests/test_discovery.mjs`로 기존 동작과 실제 ES 모듈 import/export 초기화를 검증합니다.
 - `python3 e2e/browser_e2e.py`는 선택형이며 Chromium/WebKit 등 실제 브라우저 검증용입니다.
@@ -333,4 +333,4 @@ GCC/gcov를 설치한 개발 환경에서 `sh tools/coverage.sh`를 실행하면
 
 시그널링 요청의 선택적 `transferId`(24자리 16진수)는 `body` 바깥에 존재하며, 서버 초대·승인 권한과 브라우저 메시지를 전송 건별로 구분합니다. 신규 클라이언트는 등록 시 `protocolVersion: 2`를 광고하며 양쪽 기기가 이를 지원할 때만 전송 ID를 사용합니다. 구형 기기와 혼합 연결은 기존 레거시 경로를 유지합니다. 일시적인 신호 처리 실패는 즉시 ACK하지 않고 최대 3회 시도 후 종료 처리하며, CGI 호출에는 AbortController 시간 제한을 둡니다. 재전송은 기존 `requestId`를 유지합니다.
 
-BroadcastChannel을 지원하는 브라우저에서는 복제 탭이 기존 세션을 함께 사용하지 않도록 새 세션을 발급합니다. 최대 8MiB 파일은 WebCrypto SHA-256을 선택적으로 검증하며, 더 큰 파일은 메모리 부담을 억제하기 위해 기존 64MiB 전송과 수동 무결성 검사 방식을 유지합니다. CGI 상태 디렉터리의 원자적 저장 임시 파일은 120초 경과 및 권한·소유권·파일 종류 검사 후에만 정리합니다. 실기기 검증은 `docs/VALIDATION.md`를 참고하세요.
+BroadcastChannel을 지원하는 브라우저에서는 복제 탭이 기존 세션을 함께 사용하지 않도록 새 세션을 발급합니다. 신규 클라이언트는 최대 64MiB 파일에 대해 SHA-256을 검증합니다. 8MiB를 넘거나 WebCrypto를 사용할 수 없는 경우 기존 16KiB 전송 청크를 증분 해시하여 파일 전체를 복사하지 않습니다. 구형 클라이언트에서 검증 메타데이터를 보내지 않는 경우에는 기존 선택적 검증 동작과 호환됩니다. CGI 상태 디렉터리의 원자적 저장 임시 파일은 120초 경과 및 권한·소유권·파일 종류 검사 후에만 정리합니다. 실기기 검증은 `docs/VALIDATION.md`를 참고하세요.
