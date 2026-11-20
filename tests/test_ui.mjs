@@ -298,6 +298,9 @@ function createBrowserRuntime(navigatorValue = {}) {
     return elements.get(id);
   };
   const timers = [];
+  const intervals = new Map();
+  const revoked = [];
+  let intervalId = 0;
   const sandbox = {
     document: { getElementById: get, createElement: () => new Element(),
       createElementNS: () => new Element(), querySelector: () => null, addEventListener: () => {},
@@ -306,8 +309,10 @@ function createBrowserRuntime(navigatorValue = {}) {
     location: { protocol: 'http:' }, localStorage: { getItem: () => null, setItem: () => {} },
     fetch: async () => { throw Error('unexpected HTTP request'); },
     setTimeout: (fn) => { timers.push(fn); return timers.length; }, clearTimeout: () => {},
+    setInterval: (fn) => { const id = ++intervalId; intervals.set(id, fn); return id; },
+    clearInterval: (id) => intervals.delete(id),
     navigator: navigatorValue, console, TextEncoder, Blob,
-    URL: { createObjectURL: () => 'blob:arcdrop-test', revokeObjectURL: () => {} },
+    URL: { createObjectURL: () => 'blob:arcdrop-test', revokeObjectURL: (url) => revoked.push(url) },
     RTCPeerConnection: class {
       connectionState = 'connected';
       close() { this.connectionState = 'closed'; }
@@ -315,8 +320,68 @@ function createBrowserRuntime(navigatorValue = {}) {
   };
   const context = vm.createContext(sandbox);
   vm.runInContext(app, context, { filename: 'app.js' });
-  return { context, get, timers };
+  return { context, get, timers, intervals, revoked };
 }
+
+test('파일 저장 버튼을 누른 뒤에만 5초 카운트다운을 진행하고 안내창을 닫는다', () => {
+  for (const markup of [html, demo]) {
+    assert.match(markup, /id="download-hint"/);
+    assert.match(markup, /id="download-countdown" class="dialog-footnote hidden" role="status" aria-live="polite"/);
+  }
+  const { context, get, intervals, revoked } = createBrowserRuntime();
+  context.fakeNow = 100000;
+  vm.runInContext('Date.now = () => fakeNow; state.blobUrl = "blob:arcdrop-test"; show("download", true)', context);
+  assert.equal(intervals.size, 0, '파일 수신만으로 타이머 시작 금지');
+  assert.equal(get('download-countdown').classList.contains('hidden'), true);
+  assert.equal(get('download').classList.contains('hidden'), false);
+
+  get('download-link').click();
+  assert.equal(intervals.size, 1);
+  assert.match(get('download-countdown').textContent, /5초 후 자동으로 닫힙니다/);
+  assert.equal(get('download-countdown').classList.contains('hidden'), false);
+  assert.equal(get('download-link').textContent, '다시 저장');
+  assert.equal(revoked.length, 0, '다운로드 요청 직후 Blob 해제 금지');
+  const tick = () => { for (const run of [...intervals.values()]) run(); };
+  context.fakeNow += 1100; tick();
+  assert.match(get('download-countdown').textContent, /4초 후/);
+  context.fakeNow += 3800; tick();
+  assert.match(get('download-countdown').textContent, /1초 후/);
+  assert.equal(get('download').classList.contains('hidden'), false);
+  assert.equal(revoked.length, 0);
+  context.fakeNow += 100; tick();
+  assert.equal(get('download').classList.contains('hidden'), true);
+  assert.equal(intervals.size, 0);
+  assert.deepEqual(revoked, ['blob:arcdrop-test']);
+  assert.equal(get('download-link').textContent, '파일 저장');
+  assert.equal(get('download-countdown').classList.contains('hidden'), true);
+  assert.equal(get('download-hint').classList.contains('hidden'), false);
+});
+
+test('재저장은 카운트다운을 다시 시작하고 수동 닫기·새 전송은 잔여 타이머를 정리한다', () => {
+  const { context, get, intervals, revoked } = createBrowserRuntime();
+  context.fakeNow = 200000;
+  vm.runInContext('Date.now = () => fakeNow; state.blobUrl = "blob:first"; show("download", true)', context);
+  get('download-link').click();
+  const originalTimer = [...intervals.keys()][0];
+  context.fakeNow += 4000;
+  get('download-link').click();
+  assert.equal(intervals.has(originalTimer), false);
+  assert.equal(intervals.size, 1);
+  for (const run of intervals.values()) run();
+  assert.match(get('download-countdown').textContent, /5초 후/);
+  context.fakeNow += 1200;
+  for (const run of intervals.values()) run();
+  assert.match(get('download-countdown').textContent, /4초 후/);
+  get('done').click();
+  assert.equal(intervals.size, 0);
+  assert.equal(get('download').classList.contains('hidden'), true);
+  assert.deepEqual(revoked, ['blob:first']);
+  vm.runInContext('state.blobUrl = "blob:second"; show("download", true)', context);
+  get('download-link').click();
+  vm.runInContext('cleanDownload()', context);
+  assert.equal(intervals.size, 0, '새 전송 전 정리 후 타이머가 남지 않아야 함');
+  assert.deepEqual(revoked, ['blob:first', 'blob:second']);
+});
 
 test('iPadOS가 Macintosh와 MacIntel로 표시되어도 태블릿으로 감지한다', () => {
   const cases = [

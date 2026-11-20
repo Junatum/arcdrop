@@ -3,7 +3,7 @@ import { state, wakePoll, DEVICE_TYPES } from './js/core.js';
 import { $, notice, show, initTheme, displayProfile, clearToast } from './js/ui.js';
 import { api } from './js/api.js';
 import { setInviteHandler } from './js/discovery.js';
-import { beginInvite, acceptIncoming, declineIncoming, cancelTransfer, cleanDownload, resetTransfer } from './js/transfer.js';
+import { beginInvite, acceptIncoming, declineIncoming, cancelTransfer, cleanDownload, startDownloadCountdown, resetTransfer } from './js/transfer.js';
 import { start, resumeDiscovery, savedProfile, validName, storageWrite, browserStorage } from './js/session.js';
 
 setInviteHandler(beginInvite);
@@ -17,6 +17,7 @@ $('accept').addEventListener('click', () => void acceptIncoming());
 $('decline').addEventListener('click', () => void declineIncoming());
 $('cancel').addEventListener('click', () => void cancelTransfer());
 $('done').addEventListener('click', () => cleanDownload());
+$('download-link').addEventListener('click', () => startDownloadCountdown());
 $('help').addEventListener('click', () => { show('help-dialog', true); $('help-close').focus(); });
 $('help-close').addEventListener('click', () => show('help-dialog', false));
 $('notice-dismiss').addEventListener('click', () => show('notice', false));

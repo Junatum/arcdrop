@@ -41,10 +41,40 @@ export function clearIncoming() {
   return request;
 }
 
+export const DOWNLOAD_CLOSE_MS = 5000;
+let downloadCountdownTimer = null;
+
+function stopDownloadCountdown() {
+  if (downloadCountdownTimer !== null) clearInterval(downloadCountdownTimer);
+  downloadCountdownTimer = null;
+  $('download-countdown').classList.add('hidden');
+  $('download-hint').classList.remove('hidden');
+  $('download-link').textContent = '파일 저장';
+}
+
 export function cleanDownload() {
+  stopDownloadCountdown();
   if (state.blobUrl) URL.revokeObjectURL(state.blobUrl);
   state.blobUrl = null;
   show('download', false);
+}
+
+// The browser does not expose a reliable "saved to disk" event. Start only
+// when the user requests a download, and keep the Blob URL alive for 5s.
+export function startDownloadCountdown() {
+  if (!state.blobUrl || $('download').classList.contains('hidden')) return;
+  if (downloadCountdownTimer !== null) clearInterval(downloadCountdownTimer);
+  const deadline = Date.now() + DOWNLOAD_CLOSE_MS;
+  $('download-link').textContent = '다시 저장';
+  $('download-hint').classList.add('hidden');
+  $('download-countdown').classList.remove('hidden');
+  const update = () => {
+    const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    if (remaining === 0) { cleanDownload(); return; }
+    $('download-countdown').textContent = `다운로드를 요청했습니다. ${remaining}초 후 자동으로 닫힙니다.`;
+  };
+  update();
+  downloadCountdownTimer = setInterval(update, 250);
 }
 
 export function resetTransfer() {

@@ -3,6 +3,19 @@
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
 
+## 0.1.0-r22 (2026-11-20)
+
+### Improved
+- After choosing Save file, show a five-second countdown and automatically close only the download dialog. The dialog remains open until Save file is clicked, and users can still close it immediately.
+- Keep the received Blob URL available throughout the countdown; allow another save request to restart the countdown without changing WebRTC transfer behavior.
+
+### Compatibility
+- Keep browser-triggered downloads, LAN-only WebRTC file transfers, router file-storage policy and the existing package dependencies unchanged. Do not add frontend build artifacts.
+
+### Tests
+- Verify countdown timing, manual closing, repeated save requests, URL cleanup and unchanged download handling; check the same dialog structure in the production page and design preview.
+
+
 ## 0.1.0-r21 (2026-11-19)
 
 ### Improved

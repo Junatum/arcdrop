@@ -8,7 +8,7 @@
 
 **ArcDrop** is a lightweight file-sharing app for devices on the same local network, built for SmartSafeHub and OpenWrt. Send files directly between browsers without uploading them to a cloud service.
 
-- Package: `smartsafehub-app-arcdrop` (`0.1.0-r21`)
+- Package: `smartsafehub-app-arcdrop` (`0.1.0-r22`)
 - Platform: **OpenWrt 25.12**, uHTTPd HTTPS and CGI
 - License: **GPL-3.0-or-later**
 - Status: **In development** — not yet published in the official SmartSafeHub Apps catalog
@@ -31,7 +31,7 @@ On two devices connected to the same trusted LAN, open:
 https://<router-LAN-host>/arcdrop/
 ```
 
-Select the receiving device, choose a file, and accept the request on the receiver. Use **Save file** when the transfer completes.
+Select the receiving device, choose a file, and accept the request on the receiver. Use **Save file** when the transfer completes. The download dialog closes automatically five seconds after requesting the save.
 
 **Limitations:** IPv4 trusted LAN only; no remote transfers, IPv6, or transfers across client-isolated networks. Actual router and mobile-browser validation is still in progress. See [deployment and security](docs/DEPLOYMENT.md) and [validation](docs/VALIDATION.md).
 

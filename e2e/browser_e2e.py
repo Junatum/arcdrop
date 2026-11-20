@@ -172,7 +172,7 @@ class ArcDropBrowserTests(unittest.TestCase):
                         a.locator('.peer').first.wait_for(timeout=22000)
                         b.locator('.peer').first.wait_for(timeout=22000)
 
-                        def send(sender, receiver, name, payload):
+                        def send(sender, receiver, name, payload, auto_close=False):
                             with sender.expect_file_chooser() as chooser:
                                 sender.locator('.peer').first.click()
                             if isinstance(payload, Path):
@@ -199,7 +199,12 @@ class ArcDropBrowserTests(unittest.TestCase):
                                     self.assertEqual(digest(actual), digest(source))
                             else:
                                 self.assertEqual(received.read_bytes(), payload)
-                            receiver.locator('#done').click()
+                            receiver.locator('#download-countdown').wait_for(state='visible', timeout=3000)
+                            if auto_close:
+                                receiver.locator('#download').wait_for(state='hidden', timeout=10000)
+                            else:
+                                receiver.locator('#done').click()
+                                receiver.locator('#download').wait_for(state='hidden', timeout=3000)
                             sender.locator('#transfer').wait_for(state='hidden', timeout=15000)
                             # The receiver releases its WebRTC connection 800ms after ACK.
                             # Wait for the real UI to become selectable before reversing roles.
@@ -207,7 +212,7 @@ class ArcDropBrowserTests(unittest.TestCase):
                                 "() => document.querySelector('.peer')?.disabled === false",
                                 timeout=10000)
 
-                        send(a, b, 'a-to-b.txt', b'ArcDrop forward LAN P2P transfer')
+                        send(a, b, 'a-to-b.txt', b'ArcDrop forward LAN P2P transfer', auto_close=True)
                         send(b, a, 'b-to-a.txt', b'ArcDrop reverse LAN P2P transfer')
                         send(a, b, 'empty.txt', b'')
                         with a.expect_file_chooser() as chooser:
