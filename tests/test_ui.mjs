@@ -731,3 +731,33 @@ test('활발한 청크 전송 중에는 매 청크마다 새 타이머를 생성
     for(let i=0;i<4096;i++) armTimeout(state.active);`, context);
   assert.equal(timers.length, 1);
 });
+
+test('사용자 안내와 기기 이름은 밝은·어두운 테마와 모바일에서 충분히 읽힌다', () => {
+  // Verify theme-specific high-contrast text tokens rather than relying on
+  // the small, low-contrast secondary text originally used for core actions.
+  assert.match(css, /:root\{[^}]*--readable-muted:#d0dbee;--guide-ink:#b7c8ff;/);
+  assert.match(css, /:root\[data-theme="light"\]\{[^}]*--readable-muted:#455974;--guide-ink:#2448c9;/);
+  const styles = (selector) => [...css.matchAll(new RegExp(`\\.${selector}\\{([^}]*)\\}`, 'g'))]
+    .map((match) => match[1]);
+  const has = (selector, expression) => styles(selector).some((style) => expression.test(style));
+  assert.ok(has('self-identity', /font-size:17px;color:var\(--ink\)/));
+  assert.ok(has('peer-name', /font-size:15px;font-weight:700/));
+  assert.ok(has('peer-action', /font-size:13px;font-weight:650;color:var\(--guide-ink\)/));
+  assert.ok(has('peer-count', /font-size:16px;[^}]*color:var\(--guide-ink\)/));
+  assert.ok(has('privacy-note', /font-size:14px;[^}]*color:var\(--readable-muted\)/) ||
+    has('privacy-note', /color:var\(--readable-muted\);font-size:14px/));
+  assert.ok(has('dialog-description', /font-size:15px;[^}]*color:var\(--readable-muted\)/));
+  assert.ok(has('connection-status', /font-size:13px;font-weight:650/));
+  // Mobile overrides must not make essential labels 10 px or hide the status text.
+  assert.ok(has('peer-name', /font-size:14px/));
+  assert.ok(has('peer-action', /font-size:12px/));
+  assert.ok(has('privacy-note', /font-size:13px/));
+  assert.ok(has('connection-status', /font-size:12px/));
+  assert.ok(has('connection-status', /font-size:11px/));
+  assert.doesNotMatch(css, /\.connection-status\{font-size:0(?:px)?;/);
+  for (const markup of [html, demo]) {
+    assert.match(markup, /class="privacy-note"/);
+    assert.match(markup, /id="peer-count" class="peer-count"/);
+    assert.match(markup, /id="connection-label"/);
+  }
+});

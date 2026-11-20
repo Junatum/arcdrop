@@ -8,7 +8,7 @@
 
 **ArcDrop**은 SmartSafeHub와 OpenWrt 공유기를 위한 경량 로컬 파일 공유 앱입니다. 같은 네트워크의 기기끼리 클라우드 업로드 없이 브라우저에서 직접 파일을 주고받습니다.
 
-- 패키지: `smartsafehub-app-arcdrop` (`0.1.0-r22`)
+- 패키지: `smartsafehub-app-arcdrop` (`0.1.0-r23`)
 - 환경: **OpenWrt 25.12**, uHTTPd HTTPS 및 CGI
 - 라이선스: **GPL-3.0-or-later**
 - 상태: **개발 중** — 공식 SmartSafeHub Apps 카탈로그에 아직 출시되지 않았습니다.

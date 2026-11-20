@@ -3,6 +3,19 @@
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
 
+## 0.1.0-r23 (2026-11-20)
+
+### Improved
+- Enlarge device names, connection status, discovery messages, file transfer guidance and dialog text so they remain easy to notice on both desktop and mobile.
+- Improve contrast for instructions and secondary text in light and dark themes, while preserving the five discovery waves and existing page layout.
+
+### Compatibility
+- Preserve the r22 five-second save-dialog countdown, LAN-only WebRTC transfer, HTTPS policy and package dependencies. No frontend build output is added.
+
+### Tests
+- Cover readable font sizes and theme-specific text contrast, and ensure mobile connection status remains visible without disrupting the countdown.
+
+
 ## 0.1.0-r22 (2026-11-20)
 
 ### Improved
