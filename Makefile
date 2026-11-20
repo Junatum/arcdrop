@@ -2,8 +2,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=smartsafehub-app-arcdrop
-PKG_VERSION:=0.1.0
-PKG_RELEASE:=24
+PKG_VERSION:=1.0.0
+PKG_RELEASE:=1
 PKG_LICENSE:=GPL-3.0-or-later
 PKG_LICENSE_FILES:=LICENSE
 PKG_MAINTAINER:=SmartSafeHub Contributors

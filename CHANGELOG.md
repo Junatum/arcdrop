@@ -3,6 +3,21 @@
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
 
+## 1.0.0-r1 (2026-11-20)
+
+### Improved
+- Prepare the first stable ArcDrop version for official SmartSafeHub Apps release, aligning package metadata, UI version and English/Korean documentation.
+- Preserve the clearly highlighted five-second auto-close countdown introduced in the 0.1.0 series.
+
+### Compatibility
+- Keep the existing LAN-only WebRTC P2P protocol, maximum 64 MiB file size, recipient approval, secure HTTPS requirement and router file-storage policy unchanged.
+- Publishing signed packages, approving Hub catalog drafts and validating real routers remain separate release gates; version changes alone do not complete production rollout.
+
+### Tests
+- Verify stable version synchronization and ensure CHANGELOG releases remain ordered when the package moves from 0.1.0-r24 to 1.0.0-r1.
+- Retain the existing browser, CGI, package-contract and platform-compatibility regression tests.
+
+
 ## 0.1.0-r24 (2026-11-20)
 
 ### Improved

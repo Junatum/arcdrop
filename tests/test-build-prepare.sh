@@ -9,9 +9,13 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import re
 
 root = Path(sys.argv[1])
 source = (root / 'Makefile').read_text(encoding='utf-8')
+version = re.search(r'^PKG_VERSION:=(\d+\.\d+\.\d+)$', source, re.M)
+if version is None:
+    raise SystemExit('FAIL: Makefile의 ArcDrop 패키지 버전이 올바르지 않습니다')
 
 
 def require(ok, message):
@@ -103,7 +107,7 @@ with tempfile.TemporaryDirectory(prefix='arc-prepare-') as d:
     result = run_recipe(root / 'Makefile', build)
     require(result.returncode == 0,
             '실제 Makefile Build/Prepare 실패: ' + result.stdout + result.stderr)
-    prepared = build / 'smartsafehub-app-arcdrop-0.1.0'
+    prepared = build / f'smartsafehub-app-arcdrop-{version.group(1)}'
     for item in [*sorted(p.name for p in (root / 'src').glob('*.c')), 'arcdrop.h', 'LICENSE']:
         expected = root / ('LICENSE' if item == 'LICENSE' else 'src/' + item)
         created = prepared / item

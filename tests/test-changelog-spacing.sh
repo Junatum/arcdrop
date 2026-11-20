@@ -21,6 +21,16 @@ if not version or not release or versions[0][1] != f'{version.group(1)}-r{releas
     raise SystemExit('FAIL: CHANGELOG 최신 버전이 Makefile과 다릅니다')
 if len(set(v for _, v in versions)) != len(versions):
     raise SystemExit('FAIL: CHANGELOG 릴리스 버전이 중복되었습니다')
+# A major/minor version bump resets -r to 1. Compare the complete semantic
+# version before its package revision, not the revision alone.
+def version_key(value):
+    match = re.fullmatch(r'(\d+)\.(\d+)\.(\d+)-r(\d+)', value)
+    if not match:
+        raise SystemExit(f'FAIL: 잘못된 릴리스 버전: {value}')
+    return tuple(map(int, match.groups()))
+for (_, current), (_, previous) in zip(versions, versions[1:]):
+    if version_key(current) <= version_key(previous):
+        raise SystemExit(f'FAIL: CHANGELOG 버전 순서가 잘못되었습니다: {current} <= {previous}')
 for i, _ in versions[1:]:
     prev = i - 1
     while prev >= 0 and not lines[prev].strip():
