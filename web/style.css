@@ -674,6 +674,9 @@ footer {
   line-height: 1.6;
   margin: 16px 0 0
 }
+.download-countdown-seconds {
+  color: var(--accent)
+}
 body.modal-open {
   overflow: hidden
 }

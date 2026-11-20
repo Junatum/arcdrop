@@ -326,7 +326,7 @@ function createBrowserRuntime(navigatorValue = {}) {
 test('파일 저장 버튼을 누른 뒤에만 5초 카운트다운을 진행하고 안내창을 닫는다', () => {
   for (const markup of [html, demo]) {
     assert.match(markup, /id="download-hint"/);
-    assert.match(markup, /id="download-countdown" class="dialog-footnote hidden" role="status" aria-live="polite"/);
+    assert.match(markup, /id="download-countdown" class="dialog-footnote hidden" role="status" aria-live="polite">다운로드를 요청했습니다\. <span id="download-countdown-value" class="download-countdown-seconds">5초<\/span> 후 자동으로 닫힙니다\.<\/p>/);
   }
   const { context, get, intervals, revoked } = createBrowserRuntime();
   context.fakeNow = 100000;
@@ -337,15 +337,15 @@ test('파일 저장 버튼을 누른 뒤에만 5초 카운트다운을 진행하
 
   get('download-link').click();
   assert.equal(intervals.size, 1);
-  assert.match(get('download-countdown').textContent, /5초 후 자동으로 닫힙니다/);
+  assert.equal(get('download-countdown-value').textContent, '5초');
   assert.equal(get('download-countdown').classList.contains('hidden'), false);
   assert.equal(get('download-link').textContent, '다시 저장');
   assert.equal(revoked.length, 0, '다운로드 요청 직후 Blob 해제 금지');
   const tick = () => { for (const run of [...intervals.values()]) run(); };
   context.fakeNow += 1100; tick();
-  assert.match(get('download-countdown').textContent, /4초 후/);
+  assert.equal(get('download-countdown-value').textContent, '4초');
   context.fakeNow += 3800; tick();
-  assert.match(get('download-countdown').textContent, /1초 후/);
+  assert.equal(get('download-countdown-value').textContent, '1초');
   assert.equal(get('download').classList.contains('hidden'), false);
   assert.equal(revoked.length, 0);
   context.fakeNow += 100; tick();
@@ -368,10 +368,10 @@ test('재저장은 카운트다운을 다시 시작하고 수동 닫기·새 전
   assert.equal(intervals.has(originalTimer), false);
   assert.equal(intervals.size, 1);
   for (const run of intervals.values()) run();
-  assert.match(get('download-countdown').textContent, /5초 후/);
+  assert.equal(get('download-countdown-value').textContent, '5초');
   context.fakeNow += 1200;
   for (const run of intervals.values()) run();
-  assert.match(get('download-countdown').textContent, /4초 후/);
+  assert.equal(get('download-countdown-value').textContent, '4초');
   get('done').click();
   assert.equal(intervals.size, 0);
   assert.equal(get('download').classList.contains('hidden'), true);
@@ -747,6 +747,8 @@ test('사용자 안내와 기기 이름은 밝은·어두운 테마와 모바일
   assert.ok(has('privacy-note', /font-size:14px;[^}]*color:var\(--readable-muted\)/) ||
     has('privacy-note', /color:var\(--readable-muted\);font-size:14px/));
   assert.ok(has('dialog-description', /font-size:15px;[^}]*color:var\(--readable-muted\)/));
+  assert.ok(has('download-countdown-seconds', /color:var\(--accent\)/));
+  assert.doesNotMatch(css, /\.download-countdown\{display:flex|\.download-countdown-value\{font-size:/);
   assert.ok(has('connection-status', /font-size:13px;font-weight:650/));
   // Mobile overrides must not make essential labels 10 px or hide the status text.
   assert.ok(has('peer-name', /font-size:14px/));

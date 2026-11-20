@@ -52,6 +52,10 @@ function stopDownloadCountdown() {
   $('download-link').textContent = '파일 저장';
 }
 
+function renderDownloadCountdown(remaining) {
+  $('download-countdown-value').textContent = `${remaining}초`;
+}
+
 export function cleanDownload() {
   stopDownloadCountdown();
   if (state.blobUrl) URL.revokeObjectURL(state.blobUrl);
@@ -71,7 +75,7 @@ export function startDownloadCountdown() {
   const update = () => {
     const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
     if (remaining === 0) { cleanDownload(); return; }
-    $('download-countdown').textContent = `다운로드를 요청했습니다. ${remaining}초 후 자동으로 닫힙니다.`;
+    renderDownloadCountdown(remaining);
   };
   update();
   downloadCountdownTimer = setInterval(update, 250);

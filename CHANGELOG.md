@@ -3,6 +3,19 @@
 All notable changes to ArcDrop are documented here. Releases follow the OpenWrt package revision (`PKG_VERSION`-r`PKG_RELEASE`).
 
 
+## 0.1.0-r24 (2026-11-20)
+
+### Improved
+- Keep the larger r23 dialog text, and redesign the five-second auto-close message so the remaining seconds stand out clearly.
+- Show the remaining countdown as a dedicated, high-contrast status line (for example, “5초 남음”) instead of burying it inside a small footnote sentence.
+
+### Compatibility
+- Keep the existing five-second auto-close behavior, repeated save requests, LAN-only WebRTC transfer flow, HTTPS policy and package dependencies unchanged.
+
+### Tests
+- Verify the countdown markup, highlighted remaining-seconds text, runtime countdown updates and mobile sizing without changing the underlying save flow.
+
+
 ## 0.1.0-r23 (2026-11-20)
 
 ### Improved
