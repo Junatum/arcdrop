@@ -748,6 +748,7 @@ test('사용자 안내와 기기 이름은 밝은·어두운 테마와 모바일
     has('privacy-note', /color:var\(--readable-muted\);font-size:14px/));
   assert.ok(has('dialog-description', /font-size:15px;[^}]*color:var\(--readable-muted\)/));
   assert.ok(has('download-countdown-seconds', /color:var\(--accent\)/));
+  assert.match(css, /#download-countdown\{font-size:17px\}/, '자동 닫힘 안내만 17px로 확대');
   assert.doesNotMatch(css, /\.download-countdown\{display:flex|\.download-countdown-value\{font-size:/);
   assert.ok(has('connection-status', /font-size:13px;font-weight:650/));
   // Mobile overrides must not make essential labels 10 px or hide the status text.

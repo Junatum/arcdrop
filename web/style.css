@@ -677,6 +677,9 @@ footer {
 .download-countdown-seconds {
   color: var(--accent)
 }
+#download-countdown {
+  font-size: 17px
+}
 body.modal-open {
   overflow: hidden
 }
