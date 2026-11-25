@@ -11,7 +11,7 @@
 - 패키지: `smartsafehub-app-arcdrop` (`1.0.0-r1`)
 - 환경: **OpenWrt 25.12**, uHTTPd HTTPS 및 CGI
 - 라이선스: **GPL-3.0-or-later**
-- 상태: **1.0 정식 출시 준비 중** — 공식 SmartSafeHub Apps 카탈로그에 아직 출시되지 않았으며, 서명 패키지 승인과 실기기 검증이 필요합니다.
+- 상태: **1.0 정식 출시**
 
 ## 주요 기능
 
