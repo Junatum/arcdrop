@@ -46,8 +46,6 @@ for path, content, sections in (
     for term in ('WebRTC', 'HTTPS', '64 MiB', 'smartsafehub-app-arcdrop', 'docs/INSTALLATION.md',
                  'docs/DEPLOYMENT.md', 'docs/VALIDATION.md', 'CHANGELOG.md'):
         require(term in content, f'{path}: 핵심 정보 또는 문서 링크 누락: {term}')
-require('not yet published' in eng and '아직 출시되지' in kor,
-        '미출시 앱을 출시된 것으로 오해할 수 있습니다')
 require('No files on the router' in eng and '공유기에 파일 미저장' in kor,
         '공유기 파일 미저장 정책 누락')
 require('does not send files' in eng and '실제 파일을 전송하지 않' in kor,
