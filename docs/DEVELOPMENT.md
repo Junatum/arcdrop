@@ -2,7 +2,7 @@
 
 **Languages:** [English](DEVELOPMENT.md) | [한국어](ko/DEVELOPMENT.md)
 
-This guide describes ArcDrop **1.0.0-r1** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.** The release candidate still requires validation on supported routers before production approval.
+This guide describes ArcDrop **1.0.0-r1** from the accompanying source tree. **Static UI previews and real WebRTC file transfers are different tests.**
 
 ## 1. Overview
 
